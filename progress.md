@@ -24,6 +24,10 @@ export PATH="$HOME/.unity/bin:$PATH"
 unity status          # zeigt Port, State, Projekt, PID
 ```
 
+Erwartete Ausgabe: `7800  ready  /Users/nicopiehler/Arcade Tennis  6000.5.5f1  <PID>`.
+`ready` = Edit Mode, `playing` = Play Mode. Leere Tabelle = Editor läuft nicht oder das
+Pipeline-Paket fehlt.
+
 ### Git
 
 `.gitignore` hält `Library/` (2,3 GB), `Temp/`, `Logs/`, `UserSettings/`, die generierten
@@ -32,10 +36,6 @@ umfasst 159 Dateien, rund 1,1 MB.
 
 Vor größeren Umbauten committen — es gibt jetzt einen Punkt zum Zurückrollen. Autor ist lokal
 im Repository gesetzt (`git config user.name` / `user.email`), nicht global.
-
-Erwartete Ausgabe: `7800  ready  /Users/nicopiehler/Arcade Tennis  6000.5.5f1  <PID>`.
-`ready` = Edit Mode, `playing` = Play Mode. Leere Tabelle = Editor läuft nicht oder das
-Pipeline-Paket fehlt.
 
 ---
 
