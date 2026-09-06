@@ -3,7 +3,7 @@
 Übergabedokument für spätere Claude-Sessions. Der Spielentwurf steht in [plan.md](plan.md);
 hier steht, **was fertig ist** und **wie man an diesem Projekt arbeitet**.
 
-Stand: M0–M3 abgeschlossen. Als Nächstes **M4 (Schlagmechanik)**.
+Stand: M0–M4 abgeschlossen. Als Nächstes **M5 (Aufschlag)**.
 
 ---
 
@@ -90,8 +90,17 @@ unity cmd eval --code 'UnityEditor.AssetDatabase.ImportAsset("Assets/pfad.ext",
   return "ok";' --json
 ```
 
-**`recompile_status` liefert `result` als JSON-*String*, nicht als Objekt.** Beim Parsen erst
-`json.loads` auf das Feld anwenden. Gilt auch für andere Kommandos.
+**Das Nutzergebnis steckt in `data.result`, nicht in `result`** — und dort als
+JSON-*String*, nicht als Objekt. Wer auf der obersten Ebene nachschaut, bekommt still `None`
+und pollt endlos. Gilt für alle Kommandos:
+
+```python
+import sys, json
+d = json.load(sys.stdin)
+r = (d.get("data") or {}).get("result")
+if isinstance(r, str):
+    r = json.loads(r)          # bei eval/eval_file bleibt es ein String
+```
 
 **Der Editor ist beim Domain-Reload zeitweise nicht erreichbar.** Nach `recompile`,
 `editor_play` und `editor_stop` kommt oft „Network error" oder „No Unity Editor instances
@@ -119,6 +128,29 @@ found". Das ist normal — in einer Schleife auf `unity status` warten, nicht ab
 unity cmd editor_status --json   # -> result.playMode
 ```
 
+### Das Spiel über die CLI steuern
+
+Ein Eval-Aufruf kostet rund 0,2 s Wanduhrzeit — gegen ein Trefferfenster von 0,17 s ist das
+ein Münzwurf. Der Ausweg ist nicht schnelleres Pollen, sondern eine **langsamere Uhr**:
+
+```bash
+unity cmd eval --code 'UnityEngine.Time.timeScale = 0.08f; return "ok";' --json
+```
+
+Bei `timeScale = 0.08` kostet derselbe Aufruf nur noch 16 ms *Spielzeit*. Die Physik läuft
+unverändert weiter — `Time.fixedDeltaTime` ist nicht skaliert, es wird nur seltener getickt.
+Damit lässt sich ein Schlag über die CLI sauber timen: pollen, bis `t*` (dieselbe Formel wie
+in `SwingSolver.Evaluate`) auf die `ContactDelay` zuläuft, dann loslassen. So entstand der
+M4-Live-Test — zweimal „Perfect", Rückschlag mit 25 m/s, Aufkommen 0,72 m vor der
+gegnerischen Grundlinie.
+
+Zwei Dinge dabei beachten:
+
+- **`PlayerInputController` vorher abschalten.** Er schreibt den Tastenzustand jeden Frame neu
+  und überschreibt sofort, was das Skript gesetzt hat
+- **`Time.timeScale` am Ende auf 1 zurücksetzen** — im Play Mode *und* im Edit Mode. Es sind
+  zwei getrennte Werte, und der Edit-Mode-Wert überlebt Sessions (siehe M4)
+
 ### Reproduzierbare Screenshots
 
 Statt gegen die Spielschleife zu rennen: `Time.timeScale = 0`, Zustand gezielt setzen,
@@ -142,23 +174,31 @@ aufnehmen. `Tools/pose_shot.cs` macht genau das für den Ball. Danach `timeScale
 | `Characters/CharacterConfig.cs` | ScriptableObject: Tempo, Beschleunigung, Bremsen, Deadzone, Reichweite, Trefferhöhe, Drehung |
 | `Characters/CharacterMotion.cs` | **Reine Bewegungsfunktion.** `ToWorldIntent` (Seitenspiegelung), `Step` |
 | `Characters/TennisCharacter.cs` | Körper für Spieler *und* KI. `SetMoveIntent`, `Teleport`, `HitCentre`, `ReachRadius`, `Side` |
-| `Characters/PlayerInputController.cs` | Liest `Move` aus dem Action Map und füttert den Körper |
+| `Characters/SwingConfig.cs` | ScriptableObject: Aufladen, Trefferfenster, Sweet Spot, Zielweite, Streuung, Bogenhöhe |
+| `Characters/SwingSolver.cs` | **Kern der Schlagmechanik.** `Tick` (Zustandsautomat), `Evaluate` (Trefferurteil), `ResolveTarget`, `ResolveApex` — alles rein |
+| `Characters/SwingController.cs` | Schlag als Fähigkeit des Körpers. `SetSwingHeld`, `SetAim`, Events `SwingStarted`/`Contacted`, `LastContact` |
+| `Characters/PlayerInputController.cs` | Liest `Move` und `Swing` aus dem Action Map und füttert Körper und Schlag |
 | `Presentation/MatchCamera.cs` | Kamera hinter der Grundlinie, **feste Rotation**, seitliche Parallelfahrt |
 | `Presentation/ReachIndicator.cs` | Reichweitenring, Mesh zur Laufzeit erzeugt (`HideAndDontSave`) |
+| `Presentation/SwingIndicator.cs` | Ladebalken über der Figur, blitzt nach dem Schlag in der Farbe der Trefferqualität |
 | `Utility/RingMesh.cs` | Ringmesh-Generator |
-| `Debug/BallTestLauncher.cs` | **Gerüst für M2, in M4 löschen**, sobald echte Schläge den Ball antreiben |
+| `Debug/BallFeeder.cs` | **Gerüst für M4, in M5 löschen.** Spielt Bälle an, damit der Schlag ohne Aufschlag geübt werden kann |
 | `Input/TennisControls.inputactions` | Actions `Move`, `Swing`, `Pause`; Tastatur + Gamepad |
 
 ### Assets
 
 - Szene: `Assets/_Game/Scenes/Match.unity` (Build-Index 1)
-- Settings: `CourtDefinition.asset`, `BallPhysicsConfig.asset`, `CharacterConfig.asset`
-- 13 Materialien unter `Assets/_Game/Materials/`
+- Settings: `CourtDefinition.asset`, `BallPhysicsConfig.asset`, `CharacterConfig.asset`,
+  `SwingConfig.asset`
+- 15 Materialien unter `Assets/_Game/Materials/`
 
 ### Szenenaufbau (`Match.unity`, 8 Roots)
 
 `Sun` · `Court` (+`_Generated`, 75 Teile) · `Match Camera` · `Ball` · `Ball Systems`
-(Marker + Test-Launcher) · `Player` · `Opponent` · `Reach Ring`
+(Marker + Feeder) · `Player` (+`Visual`, +`Swing Bar`) · `Opponent` (+`Visual`) · `Reach Ring`
+
+Der Ladebalken hängt bewusst **nicht** unter `Visual`: in Teil 2 wird `Visual` gegen das
+Blender-Modell getauscht, das Feedback soll das überleben.
 
 **`Tools/setup_match_scene.cs` ist die Quelle der Wahrheit für die Szene.** Das Skript leert die
 Szene und baut sie komplett neu auf — idempotent. Nach Codeänderungen an Szenenobjekten:
@@ -178,21 +218,22 @@ nächsten Rebuild verloren.
 | `verify_court.cs` | 18 Prüfungen: Maße, Aus/Drin, Aufschlagfelder, Netz, generierte Geometrie |
 | `verify_ball.cs` | 13 Prüfungen: Vorhersagegenauigkeit, Solver, Netz, Tunneling, Energieverlust |
 | `verify_character.cs` | 21 Prüfungen: Steuerung, Tempo, Bremsen, Grenzen, Netzlinie, Szenenverdrahtung |
+| `verify_swing.cs` | 48 Prüfungen: Zustandsautomat, Trefferurteil, Ziel und Bogen, Flug durch die echte Ballsimulation, Szenenverdrahtung |
 | `pose_shot.cs` | Ball für Screenshots eingefroren mitten in den Flug stellen (`SHOT_INDEX`/`STEPS` werden per `sed` ersetzt) |
 | `pose_net_shot.cs` | Dasselbe für einen Netztreffer |
 
-Alle drei Prüfsuiten laufen **ohne Play Mode** und ohne Timing-Abhängigkeit, weil Ball- und
+Alle vier Prüfsuiten laufen **ohne Play Mode** und ohne Timing-Abhängigkeit, weil Ball- und
 Figurenbewegung reine Funktionen sind.
 
 ```bash
 export PATH="$HOME/.unity/bin:$PATH"
 cd "/Users/nicopiehler/Arcade Tennis"
-for f in verify_court verify_ball verify_character; do
+for f in verify_court verify_ball verify_character verify_swing; do
   unity cmd eval_file --file "Tools/$f.cs" --timeout 120000 --json
 done
 ```
 
-**Erwartet: 18 / 13 / 21 PASS, 0 FAIL.** Nach jeder Änderung laufen lassen. Neue Mechanik
+**Erwartet: 18 / 13 / 21 / 48 PASS, 0 FAIL.** Nach jeder Änderung laufen lassen. Neue Mechanik
 bekommt eine eigene `verify_*.cs`.
 
 ---
@@ -249,30 +290,67 @@ Zwei Fehler, die erst der Betrieb zeigte:
   Rotation **konstant** (`BaseRotation()` aus der zentrierten Position) und die Kamera fährt nur
   parallel mit. Neigung bleibt bei 20,62°
 
+### M4 — Schlagmechanik ✅
+
+Der Meilenstein, der über das Spielgefühl entscheidet. Ablauf: **Idle → Aufladen →
+Trefferfenster → Erholung**. Taste halten lädt in 0,6 s auf volle Kraft, Loslassen startet den
+Schwung, 0,09 s später trifft der Schläger. Genau dieser Versatz macht den Schlag zu einer
+Timing-Entscheidung — man schlägt *bevor* der Ball da ist, nicht wenn er schon da ist.
+
+**Das Trefferurteil kommt aus einer einzigen Geometrie.** Für Relativposition `r` und
+Relativgeschwindigkeit `v` liegt die dichteste Annäherung bei `t* = -(r·v)/(v·v)`. Deren
+Abstand ist die räumliche Güte, `-t*` die zeitliche — mit Vorzeichen, also inklusive der
+Unterscheidung „zu früh" von „zu spät".
+
+Das ist der Grund, warum hier **gerechnet und nicht simuliert** wird: eine Vorwärtssimulation
+kann Verspätung erst im Nachhinein bemerken, die geschlossene Form kennt sie sofort und
+vorzeichenrichtig. Über die wenigen Hundertstel eines Schwungs ist die Gerade eine sehr gute
+Näherung der Flugbahn.
+
+Beide Hälften werden **multipliziert**, nicht gemittelt: perfektes Timing soll einen Ball am
+äußersten Schlägerrand nicht schönrechnen.
+
+Weiter:
+
+- **Aufladung → Tiefe, Aim → Breite, Qualität → Streuung *und* Kraft.** Schlechter Kontakt
+  landet dadurch kurz statt nur woanders — das ist die Rückmeldung, die man ohne HUD spürt
+- **Ein sauberer Schlag landet drin.** Volle Aufladung zielt 0,70 m vor die gegnerische
+  Grundlinie; ins Aus geht es über schlechten Kontakt oder weites Zielen, nicht übers
+  Festhalten der Taste
+- **Bogenhöhe hat einen Boden.** Ein Ball, der knapp über dem Boden getroffen wird, bekäme
+  sonst eine Flugbahn, die das Netz gar nicht überwinden kann (`MinPeakHeight`)
+- **Der Zielmarker bleibt gültig**, weil der Rückschlag über `Ball.LaunchAt` läuft und damit
+  über dieselbe Simulation
+- **Beide Figuren bekommen den `SwingController`**, nicht nur der Spieler — die KI in M7 fährt
+  denselben Körper mit denselben Grenzen
+- **Schlagvarianten bleiben abgewählt**, aber jede Zahl, die die *Form* eines Schlags
+  beschreibt, steht in `SwingConfig`. Varianten kämen später als weitere Assets dieses Typs
+  dazu, nicht als Umbau
+
+Ein Fund am Rande: `Time.timeScale` stand im Edit Mode noch auf 0 — der Rest eines
+M2-Screenshot-Skripts, der einen Session-Wechsel überlebt hat. Zurückgesetzt.
+
 ---
 
-## 5. Nächster Schritt — M4 (Schlagmechanik)
+## 5. Nächster Schritt — M5 (Aufschlag)
 
-Der Meilenstein, der über das Spielgefühl entscheidet. Nach M4 einen längeren Spieltest
-einplanen, bevor Regelwerk und KI draufkommen.
+Vorher lohnt ein **längerer Spieltest mit der Hand am Controller**. Die Zahlen aus M4 sind in
+`SwingConfig.asset` gesammelt und ohne Codeänderung verstellbar; die interessanten sind
+`ChargeTime`, `ContactDelay`, `TimingWindow` und `SweetSpotRadius`.
 
 Zu bauen:
 
-1. **Schlag-Zustandsautomat** auf `TennisCharacter`: Idle → Aufladen → Trefferfenster →
-   Erholung. Die `Swing`-Action existiert bereits im Action Map
-2. **Trefferauswertung** aus räumlicher *und* zeitlicher Nähe zum Sweet Spot:
-   Perfect / Gut / Zu früh / Zu spät / Daneben. Räumlich gegen `HitCentre` und `ReachRadius`
-3. **Qualität → Ergebnis:** Ballgeschwindigkeit, Zielgenauigkeit, Streuung. Aufladung steuert
-   die Tiefe, Aim-Input die Breite
-4. **Rückgabe an den Ball** über `Ball.LaunchAt(position, target, apexHeight)` oder direkt
-   `BallSimulation.SolveLaunchVelocity`
-5. **Feedback:** Ladebalken, Trefferqualität sichtbar machen
-6. **Events** `OnSwingStart` / `OnContact` feuern — daran hängt in Teil 2 der Animator
-7. `Debug/BallTestLauncher.cs` und die `Ball Systems`-Verdrahtung im Setup-Skript entfernen
-8. Neue `Tools/verify_swing.cs` mit denselben Standards
+1. **Ballwurf**: Ball steigt beim Tastendruck, Trefferfenster nahe dem Scheitel
+2. **Aufschlagrichtung** über `CourtDefinition.GetServiceBox` / `IsInServiceBox` — beides
+   existiert seit M1 und ist geprüft
+3. **Aufschlagposition** über `GetServePosition(serverSide, deuceCourt)`, ebenfalls vorhanden
+4. **Erster und zweiter Aufschlag**, Doppelfehler
+5. **`Debug/BallFeeder.cs` und seine Verdrahtung im Setup-Skript entfernen**, sobald der
+   Aufschlag Bälle ins Spiel bringt
+6. Neue `Tools/verify_serve.cs` mit denselben Standards
 
-Schlaglogik so bauen, dass Varianten (Topspin, Slice, Lob, Stopp) später als **Datensatz**
-dazukommen — sie sind für Teil 1 abgewählt, aber der Umbau soll später keiner sein.
+Netzroller beim Aufschlag zählen laut Plan als normal — **kein Let**, das spart einen
+Sonderfall.
 
 ---
 

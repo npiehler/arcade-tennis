@@ -4,9 +4,9 @@ using UnityEngine.InputSystem;
 namespace ArcadeTennis.Characters
 {
     /// <summary>
-    /// Feeds a <see cref="TennisCharacter"/> from the Match action map. Keeping
-    /// input in its own component means the AI can drive the very same body in
-    /// milestone 7 by pushing intents the same way.
+    /// Feeds a <see cref="TennisCharacter"/> and its <see cref="SwingController"/>
+    /// from the Match action map. Keeping input in its own component means the AI
+    /// can drive the very same body in milestone 7 by pushing intents the same way.
     /// </summary>
     [RequireComponent(typeof(TennisCharacter))]
     public class PlayerInputController : MonoBehaviour
@@ -14,14 +14,18 @@ namespace ArcadeTennis.Characters
         [SerializeField] InputActionAsset controls;
         [SerializeField] string actionMapName = "Match";
         [SerializeField] string moveActionName = "Move";
+        [SerializeField] string swingActionName = "Swing";
 
         TennisCharacter character;
+        SwingController swing;
         InputActionMap matchMap;
         InputAction moveAction;
+        InputAction swingAction;
 
         void Awake()
         {
             character = GetComponent<TennisCharacter>();
+            swing = GetComponent<SwingController>();
 
             if (controls == null)
             {
@@ -32,6 +36,7 @@ namespace ArcadeTennis.Characters
 
             matchMap = controls.FindActionMap(actionMapName, true);
             moveAction = matchMap.FindAction(moveActionName, true);
+            swingAction = matchMap.FindAction(swingActionName, true);
         }
 
         void OnEnable() => matchMap?.Enable();
@@ -40,7 +45,17 @@ namespace ArcadeTennis.Characters
         void Update()
         {
             if (moveAction == null) return;
-            character.SetMoveIntent(moveAction.ReadValue<Vector2>());
+
+            Vector2 move = moveAction.ReadValue<Vector2>();
+            character.SetMoveIntent(move);
+
+            if (swing == null) return;
+
+            // One stick does both jobs, as it does in every arcade tennis game:
+            // where you run is where you aim. Splitting them would need a second
+            // stick the keyboard does not have.
+            swing.SetAim(move);
+            swing.SetSwingHeld(swingAction != null && swingAction.IsPressed());
         }
     }
 }

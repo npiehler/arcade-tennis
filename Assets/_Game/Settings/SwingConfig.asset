@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 47871918d5fc7454e859f6bcdae994c7, type: 3}
+  m_Name: SwingConfig
+  m_EditorClassIdentifier: ArcadeTennis.Runtime::ArcadeTennis.Characters.SwingConfig
+  chargeTime: 0.6
+  minCharge: 0.18
+  contactDelay: 0.09
+  timingWindow: 0.17
+  perfectWindow: 0.045
+  swingDuration: 0.3
+  recoverDuration: 0.16
+  sweetSpotRadius: 0.55
+  perfectThreshold: 0.82
+  goodThreshold: 0.45
+  minTargetDepth: 4.5
+  baselineMargin: 0.7
+  aimWidth: 0.92
+  outMargin: 2.2
+  maxSpread: 3
+  minSpread: 0.12
+  minQualityPower: 0.4
+  apexSoft: 2.3
+  apexHard: 1.45
+  minPeakHeight: 1.75

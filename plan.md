@@ -84,15 +84,16 @@ Spielerbewegung wird geklemmt statt simuliert. Unity-Physik würde nur kosten un
 | **M1** | Court: `CourtDefinition` (Maße + `IsInBounds`/`IsInServiceBox`), generierte Geometrie, Netz, Umgebung, Gizmos | Screenshot zeigt korrekten Platz | ✅ |
 | **M2** | Ball: eigene Integration mit Luftwiderstand, Absprung, Trajektorien-Solver, Landepunkt-Vorhersage → **Zielmarker** | Marker sitzt exakt auf dem Aufkommpunkt | ✅ |
 | **M3** | Dummy-Figur: Bewegung mit Beschleunigung, Reichweitenring, mitlaufende Kamera | Figur ist steuerbar und lesbar | ✅ |
-| **M4** | **Schlagmechanik (Kern):** Idle → Aufladen → Trefferfenster → Erholung. Qualität aus räumlicher *und* zeitlicher Nähe zum Sweet Spot → Perfect/Gut/Zu früh/Zu spät/Daneben. Aufladung steuert Tiefe, Aim die Breite, Qualität die Streuung | Bälle landen kontrolliert im Feld, Qualität ist sichtbar | ⬜ |
+| **M4** | **Schlagmechanik (Kern):** Idle → Aufladen → Trefferfenster → Erholung. Qualität aus räumlicher *und* zeitlicher Nähe zum Sweet Spot → Perfect/Gut/Zu früh/Zu spät/Daneben. Aufladung steuert Tiefe, Aim die Breite, Qualität die Streuung | Bälle landen kontrolliert im Feld, Qualität ist sichtbar | ✅ |
 | **M5** | Aufschlag: Ballwurf, Timing-Fenster, diagonales Aufschlagfeld, erster/zweiter Aufschlag, Doppelfehler | Aufschlag landet regelkonform, Fehler erkannt | ⬜ |
 | **M6** | Regelwerk: `TennisScore` als reine C#-Klasse (15/30/40, Einstand, Vorteil, Spiele, Satz, Tiebreak), `RuleEvaluator` für Aus/Netz/Doppelaufsprung, Aufschlag- und Seitenwechsel — **mit EditMode-Unit-Tests** | `unity test` grün, Zählweise stimmt in allen Sonderfällen | ⬜ |
 | **M7** | Gegner-KI: Anlaufen zum vorhergesagten Punkt → Schlag → Rückkehr zur Grundlinie. Schwierigkeit über Reaktionszeit, Tempo, Timing-Fehler, Zielstreuung | Ballwechsel über mehrere Schläge hält | ⬜ |
 | **M8** | Kamera: Seitenwechsel, Aufschluss-Framing. HUD: Punktestand, Aufschlaganzeige, Ladebalken, Punkt-Einblendungen | Ein Satz ist von Anfang bis Ende spielbar | ⬜ |
 | **M9** | Balancing über ein zentrales Tuning-Asset, Politur, Übergabe an Teil 2 | Spielgefühl sitzt, Prefabs sind assettauschbereit | ⬜ |
 
-**M4 ist der Risikoposten** — dort steckt das Spielgefühl. Nach M4 einen längeren Test einplanen,
-bevor Regelwerk und KI draufkommen.
+**M4 war der Risikoposten** — dort steckt das Spielgefühl. Bevor Regelwerk und KI draufkommen,
+lohnt ein längerer Spieltest mit der Hand am Controller; die Zahlen in `SwingConfig.asset` sind
+genau dafür an einer Stelle gesammelt und ohne Codeänderung verstellbar.
 
 ### Wichtig für M7
 

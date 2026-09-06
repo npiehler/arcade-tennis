@@ -52,6 +52,8 @@ builder.Rebuild();
 // child, not rewiring the mechanics.
 var characterConfig = UnityEditor.AssetDatabase.LoadAssetAtPath<ArcadeTennis.Characters.CharacterConfig>(
     "Assets/_Game/Settings/CharacterConfig.asset");
+var swingConfig = UnityEditor.AssetDatabase.LoadAssetAtPath<ArcadeTennis.Characters.SwingConfig>(
+    "Assets/_Game/Settings/SwingConfig.asset");
 var controlsAsset = UnityEditor.AssetDatabase.LoadAssetAtPath<UnityEngine.InputSystem.InputActionAsset>(
     "Assets/_Game/Scripts/Runtime/Input/TennisControls.inputactions");
 
@@ -99,6 +101,13 @@ System.Func<string, int, string, UnityEngine.Vector3, ArcadeTennis.Characters.Te
         charSo.FindProperty("visual").objectReferenceValue = visualRoot;
         charSo.FindProperty("side").intValue = charSide;
         charSo.ApplyModifiedPropertiesWithoutUndo();
+
+        // Both sides get the stroke, not just the player: milestone 7's AI drives
+        // the same component, so nothing about the body differs between them.
+        var swingComp = root.AddComponent<ArcadeTennis.Characters.SwingController>();
+        var swingSo = new UnityEditor.SerializedObject(swingComp);
+        swingSo.FindProperty("config").objectReferenceValue = swingConfig;
+        swingSo.ApplyModifiedPropertiesWithoutUndo();
 
         visualRoot.rotation = UnityEngine.Quaternion.LookRotation(
             new UnityEngine.Vector3(0f, 0f, -charSide), UnityEngine.Vector3.up);
@@ -187,13 +196,48 @@ markerSo.FindProperty("ball").objectReferenceValue = ball;
 markerSo.FindProperty("marker").objectReferenceValue = markerGo.transform;
 markerSo.ApplyModifiedPropertiesWithoutUndo();
 
-// --- Test launcher (milestone 2 scaffolding) ----------------------------
-var launcher = systemsGo.AddComponent<ArcadeTennis.DebugTools.BallTestLauncher>();
-var launcherSo = new UnityEditor.SerializedObject(launcher);
-launcherSo.FindProperty("ball").objectReferenceValue = ball;
-launcherSo.FindProperty("court").objectReferenceValue = courtDef;
-launcherSo.FindProperty("autoFire").boolValue = false;
-launcherSo.ApplyModifiedPropertiesWithoutUndo();
+// --- Swing wiring -------------------------------------------------------
+// Done here rather than in makeCharacter because the ball does not exist yet
+// at the point the characters are built.
+foreach (var swinger in new ArcadeTennis.Characters.TennisCharacter[] { player, opponent })
+{
+    var sc = swinger.GetComponent<ArcadeTennis.Characters.SwingController>();
+    var scSo = new UnityEditor.SerializedObject(sc);
+    scSo.FindProperty("ball").objectReferenceValue = ball;
+    scSo.ApplyModifiedPropertiesWithoutUndo();
+}
+
+// --- Charge bar ---------------------------------------------------------
+// Under the logic root, deliberately not under Visual: part 2 swaps Visual out
+// for a rigged model and this feedback has to survive that.
+var barRoot = new UnityEngine.GameObject("Swing Bar");
+barRoot.transform.SetParent(player.transform, false);
+
+var barBack = makePart("Back", UnityEngine.PrimitiveType.Cube, barRoot.transform,
+    UnityEngine.Vector3.zero, new UnityEngine.Vector3(1.17f, 0.18f, 0.02f),
+    "Assets/_Game/Materials/Swing_Bar_Back.mat");
+
+var barFill = makePart("Fill", UnityEngine.PrimitiveType.Cube, barRoot.transform,
+    new UnityEngine.Vector3(0f, 0f, -0.01f), new UnityEngine.Vector3(1.10f, 0.13f, 0.02f),
+    "Assets/_Game/Materials/Swing_Bar_Fill.mat");
+
+var indicator = barRoot.AddComponent<ArcadeTennis.Presentation.SwingIndicator>();
+var indicatorSo = new UnityEditor.SerializedObject(indicator);
+indicatorSo.FindProperty("swing").objectReferenceValue =
+    player.GetComponent<ArcadeTennis.Characters.SwingController>();
+indicatorSo.FindProperty("character").objectReferenceValue = player.transform;
+indicatorSo.FindProperty("fill").objectReferenceValue = barFill.transform;
+indicatorSo.FindProperty("background").objectReferenceValue = barBack.transform;
+indicatorSo.ApplyModifiedPropertiesWithoutUndo();
+
+// --- Ball feeder (milestone 4 practice rig) -----------------------------
+// Replaced by the serve in milestone 5.
+var feeder = systemsGo.AddComponent<ArcadeTennis.DebugTools.BallFeeder>();
+var feederSo = new UnityEditor.SerializedObject(feeder);
+feederSo.FindProperty("ball").objectReferenceValue = ball;
+feederSo.FindProperty("court").objectReferenceValue = courtDef;
+feederSo.FindProperty("receiver").objectReferenceValue = player;
+feederSo.ApplyModifiedPropertiesWithoutUndo();
 
 UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
 UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene);
