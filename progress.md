@@ -221,6 +221,7 @@ nächsten Rebuild verloren.
 | `verify_swing.cs` | 48 Prüfungen: Zustandsautomat, Trefferurteil, Ziel und Bogen, Flug durch die echte Ballsimulation, Szenenverdrahtung |
 | `pose_shot.cs` | Ball für Screenshots eingefroren mitten in den Flug stellen (`SHOT_INDEX`/`STEPS` werden per `sed` ersetzt) |
 | `pose_net_shot.cs` | Dasselbe für einen Netztreffer |
+| `pose_swing.cs` + `pose_swing_freeze.cs` | Stellt Ladebalken und Schlag für Screenshots ein. Streckt die Ladezeit, weil ein CLI-Aufruf sonst länger dauert als die ganze Aufladung; `pose_swing_freeze.cs` gibt sie zurück |
 
 Alle vier Prüfsuiten laufen **ohne Play Mode** und ohne Timing-Abhängigkeit, weil Ball- und
 Figurenbewegung reine Funktionen sind.
