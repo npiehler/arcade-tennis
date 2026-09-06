@@ -16,13 +16,22 @@ Stand: M0–M3 abgeschlossen. Als Nächstes **M4 (Schlagmechanik)**.
   laufenden Editor steuert
 - MCP-Server `unity-editor-mcp` ist in `~/.claude.json` registriert (User-Scope, absoluter
   Binärpfad)
-- **Keine Versionskontrolle aktiv.** `.plastic/` existiert, wird aber nicht benutzt. Kein Git.
-  Es gibt also kein Rückgängig über Commits — vor größeren Umbauten selbst sichern
+- **Git**, Remote `https://github.com/npiehler/arcade-tennis`, Branch `main`.
+  `.plastic/` existiert aus einer früheren Unity-Version, wird nicht benutzt und ist ignoriert
 
 ```bash
 export PATH="$HOME/.unity/bin:$PATH"
 unity status          # zeigt Port, State, Projekt, PID
 ```
+
+### Git
+
+`.gitignore` hält `Library/` (2,3 GB), `Temp/`, `Logs/`, `UserSettings/`, die generierten
+`.csproj`/`.sln`-Dateien und `Assets/Temp/` (Screenshot-Ablage) draußen. Der Basis-Commit
+umfasst 159 Dateien, rund 1,1 MB.
+
+Vor größeren Umbauten committen — es gibt jetzt einen Punkt zum Zurückrollen. Autor ist lokal
+im Repository gesetzt (`git config user.name` / `user.email`), nicht global.
 
 Erwartete Ausgabe: `7800  ready  /Users/nicopiehler/Arcade Tennis  6000.5.5f1  <PID>`.
 `ready` = Edit Mode, `playing` = Play Mode. Leere Tabelle = Editor läuft nicht oder das
