@@ -190,6 +190,49 @@ check("the near player hits into the far half", rightNear.z > 0f);
 check("the far player hits into the near half", rightFar.z < 0f);
 check("a wide clean shot still lands in", court.IsInBounds(rightNear));
 
+// --- aim deadzone ---------------------------------------------------
+// The stroke borrows the movement deadzone rather than keeping its own, so
+// that "standing still" means one thing and not two.
+float deadzone = charCfg.InputDeadzone;
+
+var idleStick = new UnityEngine.Vector2(deadzone * 0.6f, deadzone * 0.4f);
+check("aim inside the movement deadzone is discarded",
+    ArcadeTennis.Characters.SwingSolver.ApplyAimDeadzone(idleStick, deadzone)
+        == UnityEngine.Vector2.zero);
+
+var realPush = new UnityEngine.Vector2(0.8f, 0f);
+check("aim outside the deadzone is passed through untouched",
+    ArcadeTennis.Characters.SwingSolver.ApplyAimDeadzone(realPush, deadzone) == realPush);
+
+// The effect that matters: a resting stick must not pull the ball off centre.
+var driftTarget = aimAt(-1, 0.55f,
+    ArcadeTennis.Characters.SwingSolver.ApplyAimDeadzone(idleStick, deadzone),
+    perfect, noSpread);
+check("a resting stick aims straight down the middle",
+    UnityEngine.Mathf.Abs(driftTarget.x) < 0.001f);
+
+// Without the deadzone that same stick would have moved the target by an
+// amount a player can see, which is why this check exists at all.
+var undamped = aimAt(-1, 0.55f, idleStick, perfect, noSpread);
+check("the deadzone is doing real work, not rounding noise",
+    UnityEngine.Mathf.Abs(undamped.x) > 0.2f);
+
+// --- how far a full sideways aim reaches ----------------------------
+// The keyboard only ever gives a full press, so the widest aim has to stay
+// a shot a player can rely on when they strike it cleanly.
+float widestPerfect = 0f;
+for (int i = 0; i < 64; i++)
+{
+    float a = i / 64f * UnityEngine.Mathf.PI * 2f;
+    var spread = new UnityEngine.Vector2(UnityEngine.Mathf.Cos(a), UnityEngine.Mathf.Sin(a));
+    var t = aimAt(-1, 0.55f, new UnityEngine.Vector2(1f, 0f), perfect, spread);
+    widestPerfect = UnityEngine.Mathf.Max(widestPerfect, UnityEngine.Mathf.Abs(t.x));
+}
+check("a flawless full-width aim stays inside the sideline",
+    widestPerfect <= court.SinglesHalfWidth + court.LineWidth * 0.5f);
+check("but it does reach for the line, not the middle of the court",
+    widestPerfect > court.SinglesHalfWidth * 0.9f);
+
 var edgeSpread = new UnityEngine.Vector2(1f, 0f);
 float cleanScatter = UnityEngine.Mathf.Abs(
     aimAt(-1, 1f, UnityEngine.Vector2.zero, perfect, edgeSpread).x);

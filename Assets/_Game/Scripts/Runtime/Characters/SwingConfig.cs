@@ -28,8 +28,10 @@ namespace ArcadeTennis.Characters
         [Header("Swing timing")]
         [Tooltip("Delay between releasing the button and the racket meeting the ball. " +
                  "This is what makes the stroke a timing decision: the player has to " +
-                 "swing before the ball arrives, not when it is already there.")]
-        [SerializeField] float contactDelay = 0.09f;
+                 "swing before the ball arrives, not when it is already there. It is " +
+                 "also the window in which the aim can still be steered, because the " +
+                 "direction is read at contact rather than latched at release.")]
+        [SerializeField] float contactDelay = 0.18f;
 
         [Tooltip("Largest timing error that still connects. Beyond this the racket misses.")]
         [SerializeField] float timingWindow = 0.17f;
@@ -65,8 +67,12 @@ namespace ArcadeTennis.Characters
                  "to fail at both ends, or it is a depth dial rather than a decision.")]
         [SerializeField] float baselineOvershoot = 1.70f;
 
-        [Tooltip("Fraction of the singles half width a full sideways aim reaches for.")]
-        [Range(0f, 1.5f)][SerializeField] float aimWidth = 0.92f;
+        [Tooltip("Fraction of the singles half width a full sideways aim reaches for. " +
+                 "0.96 is as wide as this can go while a flawlessly struck ball still " +
+                 "clears the sideline through its own spread; past about 0.97 the best " +
+                 "possible contact starts losing the line, which the keyboard cannot " +
+                 "dodge because it only ever gives a full sideways press.")]
+        [Range(0f, 1.5f)][SerializeField] float aimWidth = 0.96f;
 
         [Tooltip("How far past the sidelines and baseline a shot may be aimed. Missing " +
                  "has to stay possible, but not into the stands.")]

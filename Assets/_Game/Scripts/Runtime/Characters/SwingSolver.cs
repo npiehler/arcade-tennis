@@ -227,6 +227,20 @@ namespace ArcadeTennis.Characters
         }
 
         /// <summary>
+        /// Drops aim input that is too small to be meant, using the very same
+        /// deadzone the legs use. A stick resting just off centre must not steer
+        /// the ball when it is not steering the player -- "standing still" has to
+        /// mean one thing, not two.
+        ///
+        /// The value comes from <see cref="CharacterConfig.InputDeadzone"/> rather
+        /// than a second field here, so the two cannot drift apart.
+        /// </summary>
+        public static Vector2 ApplyAimDeadzone(Vector2 aim, float deadzone)
+        {
+            return aim.magnitude < deadzone ? Vector2.zero : aim;
+        }
+
+        /// <summary>
         /// Where the return is aimed. Charge sets the depth, the aim stick sets
         /// the width, contact quality sets how far the ball may stray from that.
         ///

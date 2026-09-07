@@ -80,8 +80,13 @@ namespace ArcadeTennis.Characters
             {
                 float power = swing.Power(config);
 
+                // Same deadzone as the legs, so an idle stick aims straight ahead
+                // instead of quietly pulling the ball off centre.
+                float deadzone = character.Config != null ? character.Config.InputDeadzone : 0f;
+                Vector2 steered = SwingSolver.ApplyAimDeadzone(aim, deadzone);
+
                 LastTarget = SwingSolver.ResolveTarget(
-                    character.Side, power, aim, contact, config, character.Court,
+                    character.Side, power, steered, contact, config, character.Court,
                     UnityEngine.Random.insideUnitCircle);
 
                 float apex = SwingSolver.ResolveApex(power, contact, contact.Point, config);

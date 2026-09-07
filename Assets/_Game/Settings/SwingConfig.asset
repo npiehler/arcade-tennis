@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: ArcadeTennis.Runtime::ArcadeTennis.Characters.SwingConfig
   chargeTime: 0.6
   minCharge: 0
-  contactDelay: 0.09
+  contactDelay: 0.18
   timingWindow: 0.17
   perfectWindow: 0.045
   swingDuration: 0.3
@@ -24,7 +24,7 @@ MonoBehaviour:
   goodThreshold: 0.45
   minTargetDepth: 0.6
   baselineOvershoot: 1.7
-  aimWidth: 0.92
+  aimWidth: 0.96
   outMargin: 2.2
   maxSpread: 3
   minSpread: 0.12

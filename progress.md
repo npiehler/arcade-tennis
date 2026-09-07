@@ -218,7 +218,7 @@ nächsten Rebuild verloren.
 | `verify_court.cs` | 18 Prüfungen: Maße, Aus/Drin, Aufschlagfelder, Netz, generierte Geometrie |
 | `verify_ball.cs` | 13 Prüfungen: Vorhersagegenauigkeit, Solver, Netz, Tunneling, Energieverlust |
 | `verify_character.cs` | 21 Prüfungen: Steuerung, Tempo, Bremsen, Grenzen, Netzlinie, Szenenverdrahtung |
-| `verify_swing.cs` | 54 Prüfungen: Zustandsautomat, Trefferurteil, Ziel und Bogen, Flug durch die echte Ballsimulation, Netz/Drin/Aus-Bänder, Szenenverdrahtung |
+| `verify_swing.cs` | 60 Prüfungen: Zustandsautomat, Trefferurteil, Ziel und Bogen, Ziel-Deadzone, Flug durch die echte Ballsimulation, Netz/Drin/Aus-Bänder, Szenenverdrahtung |
 | `sweep_charge.cs` | **Kein Test, ein Stellwerkzeug.** Fährt die Aufladung von 0 bis 1 und meldet, was der Ball tut — nach jeder Änderung an `SwingConfig.asset` laufen lassen |
 | `pose_shot.cs` | Ball für Screenshots eingefroren mitten in den Flug stellen (`SHOT_INDEX`/`STEPS` werden per `sed` ersetzt) |
 | `pose_net_shot.cs` | Dasselbe für einen Netztreffer |
@@ -235,7 +235,7 @@ for f in verify_court verify_ball verify_character verify_swing; do
 done
 ```
 
-**Erwartet: 18 / 13 / 21 / 54 PASS, 0 FAIL.** Nach jeder Änderung laufen lassen. Neue Mechanik
+**Erwartet: 18 / 13 / 21 / 60 PASS, 0 FAIL.** Nach jeder Änderung laufen lassen. Neue Mechanik
 bekommt eine eigene `verify_*.cs`.
 
 ---
@@ -296,7 +296,7 @@ Zwei Fehler, die erst der Betrieb zeigte:
 
 Der Meilenstein, der über das Spielgefühl entscheidet. Ablauf: **Idle → Aufladen →
 Trefferfenster → Erholung**. Taste halten lädt in 0,6 s auf volle Kraft, Loslassen startet den
-Schwung, 0,09 s später trifft der Schläger. Genau dieser Versatz macht den Schlag zu einer
+Schwung, 0,18 s später trifft der Schläger. Genau dieser Versatz macht den Schlag zu einer
 Timing-Entscheidung — man schlägt *bevor* der Ball da ist, nicht wenn er schon da ist.
 
 **Das Trefferurteil kommt aus einer einzigen Geometrie.** Für Relativposition `r` und
@@ -338,6 +338,16 @@ Wer weiter hinten steht, hat mehr Netzrisiko — die Position bekommt dadurch Be
 zwei Drittel der Aufladung sind sicher; das Halten der Taste über 0,54 s hinaus geht **immer**
 ins Aus, weil die Aufladung bei 1,0 deckelt.
 
+- **Die Richtung wird beim Treffer gelesen, nicht beim Loslassen eingefroren.** Die 0,18 s
+  `ContactDelay` sind deshalb doppelt belegt: sie sind das Timing-Fenster *und* die Zeit, in
+  der noch gesteuert werden kann. Wer sie ändert, ändert beides
+- **Seitliches Zielen deckelt bei `AimWidth` 0,96.** Das ist der letzte Wert, bei dem ein
+  perfekt getroffener Linienball durch die eigene Streuung noch drin bleibt; ab etwa 0,97
+  verliert schon der bestmögliche Kontakt die Linie. Die Tastatur kann dem nicht ausweichen,
+  weil A/D nur −1, 0 und +1 kennen — volles Zielen ist dort die einzige Seitwärtsoption
+- **Zielen benutzt die Bewegungs-Deadzone** aus `CharacterConfig`, nicht eine eigene. Sonst
+  bewegt ein ruhender Stick bei 0,10 die Figur nicht, verschiebt das Ziel aber um einen halben
+  Meter — „stillstehen" muss eine Bedeutung haben und nicht zwei
 - **Der Zielmarker bleibt gültig**, weil der Rückschlag über `Ball.LaunchAt` läuft und damit
   über dieselbe Simulation
 - **Beide Figuren bekommen den `SwingController`**, nicht nur der Spieler — die KI in M7 fährt
