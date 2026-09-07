@@ -112,6 +112,28 @@ namespace ArcadeTennis.Court
             return new Vector2(box.width * 0.24f, line * 0.22f);
         }
 
+        /// <summary>
+        /// Centre of the whole service box the serve must land in, as
+        /// (x, depth from the net). The marker frames this so the three zones
+        /// inside it read as parts of one box rather than as three places on the
+        /// court -- all three sit on the same half of the court, because the box
+        /// does, and without the frame that looks like the aim is broken.
+        /// </summary>
+        public static Vector2 ServeBoxCentre(CourtDefinition court, int serverSide, bool deuceCourt)
+        {
+            if (court == null) return Vector2.zero;
+            Rect box = court.GetServiceBox(-Sign(serverSide), deuceCourt);
+            return new Vector2(box.center.x, court.ServiceLineDistance * 0.5f);
+        }
+
+        /// <summary>Half width and half depth of the whole service box.</summary>
+        public static Vector2 ServeBoxExtents(CourtDefinition court)
+        {
+            if (court == null) return Vector2.one;
+            Rect box = court.GetServiceBox(1, true);
+            return new Vector2(box.width * 0.5f, court.ServiceLineDistance * 0.5f);
+        }
+
         // --- shared ----------------------------------------------------------
 
         /// <summary>Turns a zone centre and a depth into a world point on the far side.</summary>

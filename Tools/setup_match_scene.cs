@@ -263,6 +263,12 @@ ringGo2.AddComponent<UnityEngine.MeshRenderer>().sharedMaterial =
 var aimLine = makePart("Aim Line", UnityEngine.PrimitiveType.Cube, aimGo.transform,
     UnityEngine.Vector3.zero, UnityEngine.Vector3.one, "Assets/_Game/Materials/Aim_Zone.mat");
 
+var boundaryGo = new UnityEngine.GameObject("Serve Box Frame");
+boundaryGo.transform.SetParent(aimGo.transform, false);
+boundaryGo.AddComponent<UnityEngine.MeshFilter>();
+boundaryGo.AddComponent<UnityEngine.MeshRenderer>().sharedMaterial =
+    UnityEditor.AssetDatabase.LoadAssetAtPath<UnityEngine.Material>("Assets/_Game/Materials/Aim_Zone.mat");
+
 var aimIndicator = aimGo.AddComponent<ArcadeTennis.Presentation.AimZoneIndicator>();
 var aimSo = new UnityEditor.SerializedObject(aimIndicator);
 aimSo.FindProperty("character").objectReferenceValue = player;
@@ -273,6 +279,7 @@ aimSo.FindProperty("serve").objectReferenceValue =
 aimSo.FindProperty("court").objectReferenceValue = courtDef;
 aimSo.FindProperty("ring").objectReferenceValue = ringGo2.transform;
 aimSo.FindProperty("line").objectReferenceValue = aimLine.transform;
+aimSo.FindProperty("boundary").objectReferenceValue = boundaryGo.transform;
 aimSo.ApplyModifiedPropertiesWithoutUndo();
 
 // --- Serve practice driver (milestone 5 rig) ---------------------------

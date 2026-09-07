@@ -29,6 +29,11 @@ namespace ArcadeTennis.Presentation
         [SerializeField] Transform ring;
         [SerializeField] Transform line;
 
+        [Tooltip("Frames the whole service box while serving. Without it the three zones " +
+                 "inside the box look like three places on the court -- and since the box " +
+                 "is entirely on one side, pressing right still moves the ring leftwards.")]
+        [SerializeField] Transform boundary;
+
         [Header("Look")]
         [SerializeField] float groundOffset = 0.03f;
         [SerializeField] float ringThickness = 0.16f;
@@ -38,8 +43,13 @@ namespace ArcadeTennis.Presentation
                  "this is a serve or a rally.")]
         [SerializeField] Color markerColor = new Color(0.45f, 0.85f, 1f, 1f);
 
+        [Tooltip("The box frame is drawn fainter than the chosen zone, so the eye goes to " +
+                 "the answer first and the context second.")]
+        [Range(0f, 1f)][SerializeField] float boundaryFade = 0.45f;
+
         MaterialPropertyBlock properties;
         Mesh mesh;
+        Mesh boundaryMesh;
 
         float builtRadiusX = -1f;
         float builtRadiusZ = -1f;
@@ -52,6 +62,8 @@ namespace ArcadeTennis.Presentation
         MeshFilter RingFilter => ring != null ? ring.GetComponent<MeshFilter>() : null;
         Renderer RingRenderer => ring != null ? ring.GetComponent<Renderer>() : null;
         Renderer LineRenderer => line != null ? line.GetComponent<Renderer>() : null;
+        MeshFilter BoundaryFilter => boundary != null ? boundary.GetComponent<MeshFilter>() : null;
+        Renderer BoundaryRenderer => boundary != null ? boundary.GetComponent<Renderer>() : null;
 
         void LateUpdate()
         {
@@ -91,6 +103,7 @@ namespace ArcadeTennis.Presentation
             ring.rotation = Quaternion.identity;
 
             DrawLine(character.transform.position, spot);
+            DrawBoundary(serveAiming, side, serveAiming && serve != null && serve.DeuceCourt);
             SetColor(markerColor);
         }
 
@@ -98,8 +111,52 @@ namespace ArcadeTennis.Presentation
         {
             if (ring != null && ring.gameObject.activeSelf != visible)
                 ring.gameObject.SetActive(visible);
-            if (!visible && line != null && line.gameObject.activeSelf)
-                line.gameObject.SetActive(false);
+            if (!visible)
+            {
+                if (line != null && line.gameObject.activeSelf) line.gameObject.SetActive(false);
+                if (boundary != null && boundary.gameObject.activeSelf)
+                    boundary.gameObject.SetActive(false);
+            }
+        }
+
+        /// <summary>Frames the service box while serving; nothing during a rally, where the
+        /// court's own lines already say which half is the target.</summary>
+        void DrawBoundary(bool serving, int side, bool deuceCourt)
+        {
+            if (boundary == null) return;
+
+            if (!serving)
+            {
+                if (boundary.gameObject.activeSelf) boundary.gameObject.SetActive(false);
+                return;
+            }
+
+            if (!boundary.gameObject.activeSelf) boundary.gameObject.SetActive(true);
+
+            Vector2 centre = AimZones.ServeBoxCentre(court, side, deuceCourt);
+            Vector2 extents = AimZones.ServeBoxExtents(court);
+
+            MeshFilter filter = BoundaryFilter;
+            if (filter != null && filter.sharedMesh == null)
+            {
+                boundaryMesh = RectRingMesh.Create(extents.x, extents.y, ringThickness * 0.8f);
+                boundaryMesh.hideFlags = HideFlags.HideAndDontSave;
+                filter.sharedMesh = boundaryMesh;
+            }
+
+            Vector3 spot = AimZones.ToWorld(side, centre.x, centre.y);
+            spot.y = groundOffset * 0.5f;
+            boundary.position = spot;
+            boundary.rotation = Quaternion.identity;
+
+            Renderer r = BoundaryRenderer;
+            if (r == null) return;
+
+            properties ??= new MaterialPropertyBlock();
+            Color faded = markerColor;
+            faded.a *= boundaryFade;
+            properties.SetColor("_BaseColor", faded);
+            r.SetPropertyBlock(properties);
         }
 
         void Rebuild(float radiusX, float radiusZ)
@@ -164,9 +221,12 @@ namespace ArcadeTennis.Presentation
 
         void OnDestroy()
         {
-            if (mesh == null) return;
-            if (Application.isPlaying) Destroy(mesh);
-            else DestroyImmediate(mesh);
+            foreach (Mesh m in new Mesh[] { mesh, boundaryMesh })
+            {
+                if (m == null) continue;
+                if (Application.isPlaying) Destroy(m);
+                else DestroyImmediate(m);
+            }
         }
     }
 }

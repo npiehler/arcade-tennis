@@ -202,6 +202,21 @@ foreach (var z in serveZoneList)
 }
 check("und liegen ganz im Aufschlagfeld", serveZonesInside);
 
+// Der Rahmen muss genau das Pflichtfeld umschliessen -- er ist der Kontext,
+// der die drei Zonen ueberhaupt lesbar macht.
+bool frameFits = true;
+foreach (bool dc in new bool[] { true, false })
+{
+    var bx = court.GetServiceBox(1, dc);
+    var fc = ArcadeTennis.Court.AimZones.ServeBoxCentre(court, -1, dc);
+    var fe = ArcadeTennis.Court.AimZones.ServeBoxExtents(court);
+    if (UnityEngine.Mathf.Abs((fc.x - fe.x) - bx.xMin) > 0.05f) frameFits = false;
+    if (UnityEngine.Mathf.Abs((fc.x + fe.x) - bx.xMax) > 0.05f) frameFits = false;
+    if (UnityEngine.Mathf.Abs((fc.y - fe.y)) > 0.05f) frameFits = false;
+    if (UnityEngine.Mathf.Abs((fc.y + fe.y) - court.ServiceLineDistance) > 0.05f) frameFits = false;
+}
+check("der Rahmen umschliesst genau das Pflicht-Aufschlagfeld", frameFits);
+
 check("fuer den Gegner ist links wieder links auf dem Bildschirm",
     ArcadeTennis.Court.AimZones.ServeZoneCentre(court, 1, true, ArcadeTennis.Court.AimZone.ShortLeft).x
         > ArcadeTennis.Court.AimZones.ServeZoneCentre(court, 1, true, ArcadeTennis.Court.AimZone.ShortRight).x);
@@ -368,6 +383,16 @@ foreach (var srv in servers)
 check("jeder Aufschlag hat Einstellung, Ball und den Grundschlag, den er zurueckhaelt", wired);
 
 var driver = UnityEngine.Object.FindFirstObjectByType<ArcadeTennis.DebugTools.ServePracticeDriver>();
+var ind2 = UnityEngine.Object.FindFirstObjectByType<ArcadeTennis.Presentation.AimZoneIndicator>();
+bool frameWired = ind2 != null;
+if (frameWired)
+{
+    var iso = new UnityEditor.SerializedObject(ind2);
+    var prop = iso.FindProperty("boundary");
+    frameWired = prop != null && prop.objectReferenceValue != null;
+}
+check("der Rahmen ist in der Szene verdrahtet", frameWired);
+
 check("der Uebungstreiber startet die Punkte", driver != null
     && new UnityEditor.SerializedObject(driver).FindProperty("serve").objectReferenceValue != null);
 

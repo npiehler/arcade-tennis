@@ -254,6 +254,7 @@ aufnehmen. `Tools/pose_shot.cs` macht genau das für den Ball. Danach `timeScale
 | `Presentation/SwingIndicator.cs` | Blitzt nach dem Schlag in der Farbe der Trefferqualität. War der Ladebalken; ohne Aufladung bleibt die Rückmeldung |
 | `Presentation/AimZoneIndicator.cs` | **Der Zielmarker.** Ring um die gewählte Zone plus Linie dorthin, gezeichnet aus denselben Zahlen, mit denen der Solver zielt |
 | `Utility/EllipseRingMesh.cs` | Elliptischer Umriss mit gleichmäßiger Strichstärke |
+| `Utility/RectRingMesh.cs` | Rechteckiger Umriss für den Aufschlagfeld-Rahmen |
 | `Utility/RingMesh.cs` | Ringmesh-Generator |
 | `Debug/ServePracticeDriver.cs` | **Gerüst für M5, in M6 löschen.** Entscheidet nur, *wann* der nächste Aufschlag kommt — wer den Punkt gewinnt, ist Sache des Regelwerks |
 | `Input/TennisControls.inputactions` | Actions `Move`, `Swing`, `Pause`; Tastatur + Gamepad |
@@ -296,7 +297,7 @@ nächsten Rebuild verloren.
 | `verify_ball.cs` | 13 Prüfungen: Vorhersagegenauigkeit, Solver, Netz, Tunneling, Energieverlust |
 | `verify_character.cs` | 21 Prüfungen: Steuerung, Tempo, Bremsen, Grenzen, Netzlinie, Szenenverdrahtung |
 | `verify_swing.cs` | 58 Prüfungen: Zustandsautomat, Trefferurteil, Ziel und Bogen, Ziel-Deadzone, Flug durch die echte Ballsimulation, Netz/Drin/Aus-Bänder, Szenenverdrahtung |
-| `verify_serve.cs` | 76 Prüfungen: Aufschlaggeometrie, Ballwurf, Zustandsautomat, erster/zweiter Aufschlag, Zielsetzung, Flug, Urteil, Rhythmus, Szenenverdrahtung |
+| `verify_serve.cs` | 78 Prüfungen: Aufschlaggeometrie, Ballwurf, Zustandsautomat, erster/zweiter Aufschlag, Zielsetzung, Flug, Urteil, Rhythmus, Szenenverdrahtung |
 | `sweep_shots.cs` | **Kein Test, ein Stellwerkzeug.** Fährt die Trefferqualität von 0 bis 1 für beide Schläge und alle drei Zonen und meldet, was der Ball tut, plus die Wurfrhythmus-Tabelle. Nach jeder Änderung an `SwingConfig.asset` oder `ServeConfig.asset` laufen lassen |
 | `pose_shot.cs` | Ball für Screenshots eingefroren mitten in den Flug stellen (`SHOT_INDEX`/`STEPS` werden per `sed` ersetzt) |
 | `pose_net_shot.cs` | Dasselbe für einen Netztreffer |
@@ -313,7 +314,7 @@ for f in verify_court verify_ball verify_character verify_swing verify_serve; do
 done
 ```
 
-**Erwartet: 18 / 13 / 21 / 58 / 76 PASS, 0 FAIL** — zusammen 186. Nach jeder Änderung laufen lassen. Neue Mechanik
+**Erwartet: 18 / 13 / 21 / 58 / 78 PASS, 0 FAIL** — zusammen 188. Nach jeder Änderung laufen lassen. Neue Mechanik
 bekommt eine eigene `verify_*.cs`.
 
 ---
@@ -502,6 +503,13 @@ und rechts. Die Aufteilung folgt der Aufschlaglinie, liegt also auf Markierungen
 ohnehin hat. Im Aufschlagfeld dasselbe im Kleinen. `AimZones` rechnet beides aus der
 `CourtDefinition`, und der Marker zeichnet sich aus denselben Zahlen — er kann nicht anfangen
 zu lügen, wenn jemand die Tiefen verstellt.
+
+**Beim Aufschlag liegen alle drei Zonen auf derselben Platzhälfte** — das Pflichtfeld liegt
+diagonal gegenüber und reicht nur von x = −4,1 bis 0. „Rechts" verschiebt den Ring also um zwei
+Meter, aber immer noch nach links auf dem Bildschirm. Regelkonform, aber unlesbar, solange man
+den Kasten nicht sieht. Deshalb rahmt der Marker beim Aufschlag jetzt das ganze Pflichtfeld ein
+(schwächer gezeichnet) und hebt das gewählte Drittel darin hervor. Beim Ballwechsel gibt es
+keinen Rahmen — dort zeichnet der Platz seine Hälften ohnehin selbst.
 
 **Zonen dürfen sich nicht überlappen.** Die drei Aufschlagzonen taten es: der tiefe Ring lag
 quer über beiden kurzen, in z überschnitten sie sich ebenfalls. Drei Ringe übereinander sind
