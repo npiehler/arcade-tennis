@@ -28,7 +28,7 @@ namespace ArcadeTennis.Characters
 
         TennisCharacter character;
         ServeState serve = ServeState.New();
-        AimZone zone = AimZone.Centre;
+        AimZone zone = AimZone.Deep;
         bool holding;
         bool awaitingVerdict;
 
@@ -46,7 +46,8 @@ namespace ArcadeTennis.Characters
         public int ServeNumber => serve.ServeNumber;
         public bool DeuceCourt => serve.DeuceCourt;
         public bool IsServing => serve.Phase != ServePhase.Struck;
-        public bool IsTossing => serve.Phase == ServePhase.Tossing;
+        /// <summary>True while the ball is up and the button still held: the zone can be chosen.</summary>
+        public bool IsAiming => serve.Phase == ServePhase.Tossing;
 
         /// <summary>Which of the three lanes inside the box the serve is aimed at.</summary>
         public AimZone Zone => zone;

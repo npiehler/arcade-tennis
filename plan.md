@@ -14,7 +14,7 @@ Vier Festlegungen, die alles andere prägen. Sie sind entschieden, nicht offen:
 | Frage | Entscheidung |
 |---|---|
 | **Perspektive** | Kamera hinter der eigenen Grundlinie, Blick übers Netz |
-| **Schlagmechanik** | Ein Tastendruck, kein Aufladen. Der Trefferzeitpunkt bestimmt die Qualität, die Qualität die Tiefe. Die Richtung ist eine von drei Zonen, mit eigener Taste gewählt und als Marker sichtbar |
+| **Schlagmechanik** | Taste halten zum Zielen, loslassen schlägt. Kein Aufladen. Während des Haltens wählen die Richtungstasten eines von drei Zielfeldern (oben tief, links/rechts kurz), sichtbar als Marker. Der Trefferzeitpunkt bestimmt die Qualität, die Qualität, wie weit der Ball ins gewählte Feld kommt |
 | **Umfang Teil 1** | Kompletter Satz mit voller Tennis-Zählweise, Aufschlag und Seitenwechsel |
 | **Arcade-Elemente** | Zielmarker am Boden: der Landepunkt des fliegenden Balls **und** die gewählte Zielzone. **Keine** Schlagvarianten, kein Powershot, kein Sprint |
 

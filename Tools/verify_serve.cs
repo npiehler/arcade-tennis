@@ -81,7 +81,7 @@ check("und wird raeumlich beurteilt, nicht zeitlich",
     UnityEngine.Mathf.Abs(apexContact.TimingOffset) < 0.001f);
 
 // =========================================================================
-// Zustandsautomat: zwei Tastendruecke, kein Halten
+// Zustandsautomat: druecken wirft, halten zielt, loslassen schlaegt
 // =========================================================================
 var state = ArcadeTennis.Characters.ServeState.New();
 ArcadeTennis.Characters.ServeAction act;
@@ -95,19 +95,17 @@ check("ohne Tastendruck passiert nichts",
     state.Phase == ArcadeTennis.Characters.ServePhase.Ready);
 
 ArcadeTennis.Characters.ServeSolver.Tick(ref state, true, false, cfg, dt, out act);
-check("der erste Tastendruck wirft den Ball hoch",
+check("der Tastendruck wirft den Ball hoch",
     act == ArcadeTennis.Characters.ServeAction.Toss
     && state.Phase == ArcadeTennis.Characters.ServePhase.Tossing);
 
-// Gedrueckt halten darf nicht sofort durchschlagen -- es sind zwei Druecke.
 for (int i = 0; i < 40; i++)
     ArcadeTennis.Characters.ServeSolver.Tick(ref state, true, true, cfg, dt, out act);
-check("die Taste gedrueckt zu lassen schlaegt nicht von selbst",
+check("die Taste gedrueckt zu halten zielt und wartet",
     state.Phase == ArcadeTennis.Characters.ServePhase.Tossing);
 
 ArcadeTennis.Characters.ServeSolver.Tick(ref state, false, true, cfg, dt, out act);
-ArcadeTennis.Characters.ServeSolver.Tick(ref state, true, true, cfg, dt, out act);
-check("der zweite Tastendruck startet den Schwung",
+check("das Loslassen startet den Schwung",
     state.Phase == ArcadeTennis.Characters.ServePhase.Swinging);
 
 int contactTicks = 0, contacts = 0;
@@ -128,8 +126,8 @@ check("und zwar nach der eingestellten Verzoegerung",
 var dropped = ArcadeTennis.Characters.ServeState.New();
 ArcadeTennis.Characters.ServeSolver.Tick(ref dropped, true, false, cfg, dt, out act);
 for (int i = 0; i < 10; i++)
-    ArcadeTennis.Characters.ServeSolver.Tick(ref dropped, false, true, cfg, dt, out act);
-ArcadeTennis.Characters.ServeSolver.Tick(ref dropped, false, false, cfg, dt, out act);
+    ArcadeTennis.Characters.ServeSolver.Tick(ref dropped, true, true, cfg, dt, out act);
+ArcadeTennis.Characters.ServeSolver.Tick(ref dropped, true, false, cfg, dt, out act);
 check("ein fallengelassener Wurf meldet sich",
     act == ArcadeTennis.Characters.ServeAction.TossDropped);
 check("und kostet keinen Aufschlag",
@@ -155,21 +153,21 @@ check("der naechste Punkt wird aus dem anderen Feld aufgeschlagen",
 // Die drei Zonen im Aufschlagfeld
 // =========================================================================
 var boxDeuce = court.GetServiceBox(1, true);
-float wide = ArcadeTennis.Court.AimZones.ServeLaneCentre(court, -1, true, ArcadeTennis.Court.AimZone.Left);
-float body = ArcadeTennis.Court.AimZones.ServeLaneCentre(court, -1, true, ArcadeTennis.Court.AimZone.Centre);
-float tee = ArcadeTennis.Court.AimZones.ServeLaneCentre(court, -1, true, ArcadeTennis.Court.AimZone.Right);
+var srvDeep = ArcadeTennis.Court.AimZones.ServeZoneCentre(court, -1, true, ArcadeTennis.Court.AimZone.Deep);
+var srvLeft = ArcadeTennis.Court.AimZones.ServeZoneCentre(court, -1, true, ArcadeTennis.Court.AimZone.ShortLeft);
+var srvRight = ArcadeTennis.Court.AimZones.ServeZoneCentre(court, -1, true, ArcadeTennis.Court.AimZone.ShortRight);
 
-check("drei Bahnen teilen das Aufschlagfeld, gleichmaessig", wide < body && body < tee
-    && UnityEngine.Mathf.Abs((body - wide) - (tee - body)) < 0.001f);
-check("die mittlere Bahn ist die Mitte des Feldes",
-    UnityEngine.Mathf.Abs(body - boxDeuce.center.x) < 0.001f);
-check("alle drei Bahnen liegen im Feld",
-    wide > boxDeuce.xMin && tee < boxDeuce.xMax);
-check("links zielt Richtung Seitenlinie, rechts Richtung Mittellinie",
-    UnityEngine.Mathf.Abs(wide - boxDeuce.xMin) < UnityEngine.Mathf.Abs(tee - boxDeuce.xMin));
-check("fuer den Gegner ist das gespiegelt",
-    ArcadeTennis.Court.AimZones.ServeLaneCentre(court, 1, true, ArcadeTennis.Court.AimZone.Right)
-        < ArcadeTennis.Court.AimZones.ServeLaneCentre(court, 1, true, ArcadeTennis.Court.AimZone.Left));
+check("die tiefe Zone liegt hinter den kurzen", srvDeep.y > srvLeft.y && srvDeep.y > srvRight.y);
+check("die tiefe Zone liegt in der Mitte des Feldes",
+    UnityEngine.Mathf.Abs(srvDeep.x - boxDeuce.center.x) < 0.001f);
+check("die kurzen Zonen liegen links und rechts davon",
+    srvLeft.x < srvDeep.x && srvRight.x > srvDeep.x);
+check("alle drei liegen im Aufschlagfeld",
+    srvLeft.x > boxDeuce.xMin && srvRight.x < boxDeuce.xMax
+    && srvDeep.y < court.ServiceLineDistance);
+check("fuer den Gegner ist links wieder links auf dem Bildschirm",
+    ArcadeTennis.Court.AimZones.ServeZoneCentre(court, 1, true, ArcadeTennis.Court.AimZone.ShortLeft).x
+        > ArcadeTennis.Court.AimZones.ServeZoneCentre(court, 1, true, ArcadeTennis.Court.AimZone.ShortRight).x);
 
 // =========================================================================
 // Zielsetzung
@@ -180,17 +178,18 @@ System.Func<int, bool, ArcadeTennis.Court.AimZone, float, UnityEngine.Vector2, U
             new ArcadeTennis.Characters.SwingContact { Made = true, Quality = quality },
             cfg, court, spread);
 
-var weakServe = aimAt(-1, true, ArcadeTennis.Court.AimZone.Centre, 0f, noSpread);
-var strongServe = aimAt(-1, true, ArcadeTennis.Court.AimZone.Centre, 1f, noSpread);
-check("schlechter Kontakt zielt an den Netzfuss", UnityEngine.Mathf.Abs(weakServe.z) < 2.0f);
+var weakServe = aimAt(-1, true, ArcadeTennis.Court.AimZone.Deep, 0f, noSpread);
+var strongServe = aimAt(-1, true, ArcadeTennis.Court.AimZone.Deep, 1f, noSpread);
+check("schlechter Kontakt bleibt hinter dem Ziel zurueck",
+    UnityEngine.Mathf.Abs(weakServe.z) < UnityEngine.Mathf.Abs(strongServe.z) - 0.5f);
 check("sauberer Kontakt zielt tief ins Feld",
     UnityEngine.Mathf.Abs(strongServe.z) > court.ServiceLineDistance * 0.7f);
 check("und bleibt dabei im Feld", court.IsInServiceBox(strongServe, 1, true));
 
 bool zonesLandIn = true;
-foreach (int z in new int[] { -1, 0, 1 })
-    if (!court.IsInServiceBox(aimAt(-1, true, (ArcadeTennis.Court.AimZone)z, 1f, noSpread), 1, true))
-        zonesLandIn = false;
+foreach (var z in new ArcadeTennis.Court.AimZone[] { ArcadeTennis.Court.AimZone.ShortLeft,
+    ArcadeTennis.Court.AimZone.Deep, ArcadeTennis.Court.AimZone.ShortRight })
+    if (!court.IsInServiceBox(aimAt(-1, true, z, 1f, noSpread), 1, true)) zonesLandIn = false;
 check("alle drei Zonen liegen bei sauberem Kontakt im Feld", zonesLandIn);
 
 float worstCentreSlip = 0f;
@@ -199,11 +198,11 @@ for (int i = 0; i < 48; i++)
 {
     float a = i / 48f * UnityEngine.Mathf.PI * 2f;
     var spread = new UnityEngine.Vector2(UnityEngine.Mathf.Cos(a), UnityEngine.Mathf.Sin(a));
-    var t = aimAt(-1, true, ArcadeTennis.Court.AimZone.Centre, q, spread);
+    var t = aimAt(-1, true, ArcadeTennis.Court.AimZone.Deep, q, spread);
     worstCentreSlip = UnityEngine.Mathf.Max(worstCentreSlip,
         UnityEngine.Mathf.Abs(t.x - boxDeuce.center.x));
 }
-check("die mittlere Zone bleibt in der Feldmitte", worstCentreSlip < boxDeuce.width * 0.35f);
+check("die tiefe Zone bleibt in der Feldmitte", worstCentreSlip < boxDeuce.width * 0.35f);
 
 // =========================================================================
 // Flug durch die echte Simulation
@@ -229,7 +228,8 @@ System.Func<int, bool, ArcadeTennis.Court.AimZone, float, string> fly =
 
 foreach (int server in new int[] { -1, 1 })
 foreach (bool deuce in new bool[] { true, false })
-foreach (int z in new int[] { -1, 0, 1 })
+foreach (var zone in new ArcadeTennis.Court.AimZone[] { ArcadeTennis.Court.AimZone.ShortLeft,
+    ArcadeTennis.Court.AimZone.Deep, ArcadeTennis.Court.AimZone.ShortRight })
 {
     var line = new System.Text.StringBuilder();
     int netCount = 0, inCount = 0, previous = 0;
@@ -237,7 +237,7 @@ foreach (int z in new int[] { -1, 0, 1 })
 
     for (float q = 0f; q <= 1.0001f; q += 0.05f)
     {
-        string b = fly(server, deuce, (ArcadeTennis.Court.AimZone)z, q);
+        string b = fly(server, deuce, zone, q);
         line.Append(b);
         int band = b == "n" ? 0 : b == "." ? 1 : 2;
         if (band < previous) ordered = false;
@@ -246,10 +246,9 @@ foreach (int z in new int[] { -1, 0, 1 })
     }
 
     string who = "Seite " + server + (deuce ? " Einstand " : " Vorteil ")
-        + ((ArcadeTennis.Court.AimZone)z).ToString();
-    check(who + ": schlechter Kontakt faellt ins Netz [" + line + "]", netCount >= 1);
-    check(who + ": der grosse Teil ist spielbar", inCount >= 14);
-    check(who + ": Netz, dann drin", ordered);
+        + zone.ToString();
+    check(who + ": Bahn [" + line + "]", inCount >= 8);
+    check(who + ": Netz zuerst, dann drin -- keine Sprünge", ordered);
 }
 
 // =========================================================================
@@ -276,7 +275,7 @@ System.Func<float, string> rhythm = (strike) => {
     var contact = ArcadeTennis.Characters.SwingSolver.Evaluate(
         st.Position, st.Velocity, hitCentre, UnityEngine.Vector3.zero, cfg.Contact());
     if (!contact.Made) return "x";
-    return fly(-1, true, ArcadeTennis.Court.AimZone.Centre, contact.Quality);
+    return fly(-1, true, ArcadeTennis.Court.AimZone.Deep, contact.Quality);
 };
 check("im richtigen Moment geschlagen landet der Aufschlag im Feld", rhythm(0.65f) == ".");
 check("viel zu spaet ist der Ball nicht mehr zu erreichen", rhythm(1.0f) == "x");

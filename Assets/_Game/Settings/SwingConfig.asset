@@ -20,12 +20,13 @@ MonoBehaviour:
   sweetSpotRadius: 0.55
   perfectThreshold: 0.82
   goodThreshold: 0.45
-  weakDepth: 3
-  strongDepth: 10.6
+  depthShortfall: 1.5
   outMargin: 2.2
   maxSpread: 3
   minSpread: 0.12
   lateralSpreadFactor: 0.3
   apexWeak: 0.4
   apexFull: 1.45
+  apexShortWeak: 1.9
+  apexShortFull: 1
   minPeakHeight: 1.75

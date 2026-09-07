@@ -20,7 +20,7 @@ namespace ArcadeTennis.Characters
 
         TennisCharacter character;
         SwingState swing;
-        AimZone zone = AimZone.Centre;
+        AimZone zone = AimZone.Deep;
         bool holding;
         bool suspended;
 
@@ -37,6 +37,9 @@ namespace ArcadeTennis.Characters
         public AimZone Zone => zone;
 
         public bool IsSwinging => swing.Phase == SwingPhase.Swinging;
+
+        /// <summary>True while the button is held and the zone can still be changed.</summary>
+        public bool IsAiming => swing.Phase == SwingPhase.Aiming;
 
         /// <summary>
         /// Set while the serve owns the ball. Without it the rally stroke would
@@ -69,7 +72,7 @@ namespace ArcadeTennis.Characters
 
         void Awake() => character = GetComponent<TennisCharacter>();
 
-        /// <summary>Raw button state. The stroke fires on the press, not on the hold.</summary>
+        /// <summary>Raw button state. Holding aims; letting go swings.</summary>
         public void SetSwingHeld(bool held) => holding = held;
 
         /// <summary>Picks the zone the next stroke is sent to.</summary>
@@ -109,7 +112,7 @@ namespace ArcadeTennis.Characters
                     character.Side, zone, contact, config, character.Court,
                     UnityEngine.Random.insideUnitCircle);
 
-                float apex = SwingSolver.ResolveApex(contact, contact.Point, config);
+                float apex = SwingSolver.ResolveApex(zone, contact, contact.Point, config);
                 ball.LaunchAt(contact.Point, LastTarget, apex);
             }
 

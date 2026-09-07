@@ -8,7 +8,7 @@ namespace ArcadeTennis.Characters
         /// <summary>Standing at the line, ball in hand.</summary>
         Ready,
 
-        /// <summary>Ball in the air, waiting for the strike.</summary>
+        /// <summary>Ball in the air and the button still down: the zone can be chosen.</summary>
         Tossing,
 
         /// <summary>Struck at; the racket is on its way to the ball.</summary>
@@ -55,9 +55,6 @@ namespace ArcadeTennis.Characters
         public float PhaseTime;
         public bool ContactResolved;
 
-        /// <summary>Last tick's button state: the toss and the strike are two separate presses.</summary>
-        public bool ButtonWasDown;
-
         /// <summary>1 or 2. A fault on the second is a double fault.</summary>
         public int ServeNumber;
 
@@ -91,18 +88,12 @@ namespace ArcadeTennis.Characters
             action = ServeAction.None;
             if (config == null) return;
 
-            // Two presses, not a hold: one throws the ball up, one swings at it.
-            // Edge-triggered so a player who keeps the button down after the toss
-            // does not swing straight through it.
-            bool pressed = holding && !state.ButtonWasDown;
-            state.ButtonWasDown = holding;
-
             state.PhaseTime += deltaTime;
 
             switch (state.Phase)
             {
                 case ServePhase.Ready:
-                    if (pressed)
+                    if (holding)
                     {
                         Enter(ref state, ServePhase.Tossing);
                         action = ServeAction.Toss;
@@ -118,7 +109,9 @@ namespace ArcadeTennis.Characters
                         break;
                     }
 
-                    if (pressed)
+                    // One press does all of it: it throws the ball, holds the
+                    // marker up while the zone is chosen, and swings on release.
+                    if (!holding)
                     {
                         Enter(ref state, ServePhase.Swinging);
                         state.ContactResolved = false;
@@ -170,10 +163,10 @@ namespace ArcadeTennis.Characters
         /// contact is the whole skill: meet the toss well and the serve is deep,
         /// meet it badly and it drops at the net.
         /// </summary>
-        public static float ResolveDepth(SwingContact contact, ServeConfig config)
+        public static float ResolveDepth(float zoneDepth, SwingContact contact, ServeConfig config)
         {
-            if (config == null) return 4f;
-            return Mathf.Lerp(config.WeakDepth, config.StrongDepth, Mathf.Clamp01(contact.Quality));
+            if (config == null) return zoneDepth;
+            return zoneDepth - config.DepthShortfall * (1f - Mathf.Clamp01(contact.Quality));
         }
 
         /// <summary>
@@ -188,27 +181,23 @@ namespace ArcadeTennis.Characters
             if (config == null || court == null) return Vector3.zero;
 
             int server = Sign(serverSide);
-            int receiver = -server;
-            Rect box = court.GetServiceBox(receiver, deuceCourt);
+            Rect box = court.GetServiceBox(-server, deuceCourt);
 
-            Vector3 nominal = AimZones.ServeTarget(court, server, deuceCourt, zone,
-                ResolveDepth(contact, config));
+            Vector2 zoneCentre = AimZones.ServeZoneCentre(court, server, deuceCourt, zone);
+            float depth = ResolveDepth(zoneCentre.y, contact, config);
 
             float scatter = Mathf.Lerp(config.MaxSpread, config.MinSpread, contact.Quality);
             Vector2 offset = Vector2.ClampMagnitude(spread, 1f) * scatter;
             offset.x *= config.LateralSpreadFactor;
 
-            float x = Mathf.Clamp(nominal.x + offset.x,
+            float x = Mathf.Clamp(zoneCentre.x + offset.x,
                 Mathf.Min(box.xMin, box.xMax) - config.OutMargin,
                 Mathf.Max(box.xMin, box.xMax) + config.OutMargin);
 
-            // nominal.z already carries the receiver's sign, so multiplying by it
-            // again gives the plain distance from the net. Negating it here sent
-            // every serve to the foot of the net instead.
-            float depth = Mathf.Clamp(receiver * nominal.z + offset.y,
-                config.WeakDepth * 0.4f, court.ServiceLineDistance + config.OutMargin);
+            depth = Mathf.Clamp(depth + offset.y, 0.3f,
+                court.ServiceLineDistance + config.OutMargin);
 
-            return new Vector3(x, 0f, receiver * depth);
+            return AimZones.ToWorld(server, x, depth);
         }
 
         /// <summary>Apex above the contact point. Clean contact flattens the serve.</summary>

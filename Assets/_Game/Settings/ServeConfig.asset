@@ -26,8 +26,7 @@ MonoBehaviour:
   recoverDuration: 0.2
   perfectThreshold: 0.82
   goodThreshold: 0.45
-  weakDepth: 1.2
-  strongDepth: 5.6
+  depthShortfall: 1.1
   outMargin: 1.6
   maxSpread: 1.5
   minSpread: 0.1

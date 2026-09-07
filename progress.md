@@ -10,17 +10,21 @@ Stand: M0–M5 abgeschlossen, Steuerung nach den Spieltests umgebaut. Als Nächs
 
 | Eingabe | Wirkung |
 |---|---|
-| **WASD** / linker Stick | Laufen |
-| **Pfeiltasten** / rechter Stick / D-Pad | Zielzone wählen: links, Mitte, rechts |
-| **Leertaste** / A-Taste | Schlagen. Beim Aufschlag zweimal: werfen, dann schlagen |
+| **Pfeiltasten** / WASD / linker Stick / D-Pad | Laufen — solange die Leertaste **nicht** gedrückt ist |
+| **Leertaste halten** / A halten | Zielen. Der Marker erscheint. Beim Aufschlag fliegt gleichzeitig der Ball hoch |
+| **+ Pfeil oben** | tiefes Feld (Voreinstellung bei jedem neuen Druck) |
+| **+ Pfeil links / rechts** | kurzes Feld links bzw. rechts |
+| **Leertaste loslassen** | Schlagen. Der Ball geht ins gewählte Feld |
 
-**Kein Aufladen.** Ein Druck, ein Schlag. Wie gut getroffen wird, entscheidet über die Tiefe:
-sauber getroffen geht der Ball tief, schlecht getroffen kurz, ganz schlecht ins Netz. Wohin er
-geht, entscheidet die Zone — und die ist als Ring mit Linie auf dem Platz zu sehen.
+**Kein Aufladen.** Halten kostet nichts und bringt nichts außer der Zeit, ein Feld zu wählen —
+und dem Ball, der derweil näher kommt.
 
-Zielen liegt bewusst **nicht** auf denselben Tasten wie das Laufen. Vorher war die Richtung, in
-die man zum Ball lief, auch die Richtung, in die man schlug; das ließ sich nur korrigieren,
-indem man mitten im Schwung den Lauf abbremste.
+Dieselben Tasten machen zwei Dinge, aber nie gleichzeitig: frei steuern sie, mit gedrückter
+Leertaste wählen sie das Zielfeld, und die Figur bleibt dabei stehen. Das ist auch der Grund
+dafür, dass die Laufrichtung nicht mehr aus Versehen die Schlagrichtung bestimmt.
+
+Die Trefferqualität entscheidet, **wie weit** der Ball ins gewählte Feld kommt: sauber
+getroffen bis in die Mitte der Zone, schlecht getroffen bis zu `DepthShortfall` davor.
 
 ---
 
@@ -214,7 +218,7 @@ aufnehmen. `Tools/pose_shot.cs` macht genau das für den Ball. Danach `timeScale
 | Datei | Zweck |
 |---|---|
 | `Court/CourtDefinition.cs` | **Einzige Quelle aller Platzmaße.** `IsInBounds`, `GetServiceBox`, `IsInServiceBox`, `NetHeightAt`, `GetServePosition`, `GetBaselineCentre`, `ClampToPlayArea`, `ClampToOwnHalf` |
-| `Court/AimZones.cs` | **Die drei Zielzonen** als reine Geometrie: Bahnmitten und -breiten für Grundschlag und Aufschlagfeld, Spiegelung pro Seite, Eingabe → Zone |
+| `Court/AimZones.cs` | **Die drei Zielzonen** als reine Geometrie: ein tiefes Feld hinter der Aufschlaglinie, zwei kurze davor, dasselbe im Aufschlagfeld. Spiegelung pro Seite, Eingabe → Zone |
 | `Court/CourtBuilder.cs` | Erzeugt die Geometrie aus der Definition unter `_Generated`. Idempotent, Kontextmenü „Rebuild Court". Gizmos für Feld, Aufschlagfelder, Netzkurve |
 | `Ball/BallPhysicsConfig.cs` | ScriptableObject: Gravitation, Luftwiderstand, Radius, Restitution, Reibung, Substepping |
 | `Ball/BallState.cs` | `BallState`, `BallEvent`, `BallPrediction` |
@@ -277,8 +281,8 @@ nächsten Rebuild verloren.
 | `verify_court.cs` | 18 Prüfungen: Maße, Aus/Drin, Aufschlagfelder, Netz, generierte Geometrie |
 | `verify_ball.cs` | 13 Prüfungen: Vorhersagegenauigkeit, Solver, Netz, Tunneling, Energieverlust |
 | `verify_character.cs` | 21 Prüfungen: Steuerung, Tempo, Bremsen, Grenzen, Netzlinie, Szenenverdrahtung |
-| `verify_swing.cs` | 53 Prüfungen: Zustandsautomat, Trefferurteil, Ziel und Bogen, Ziel-Deadzone, Flug durch die echte Ballsimulation, Netz/Drin/Aus-Bänder, Szenenverdrahtung |
-| `verify_serve.cs` | 85 Prüfungen: Aufschlaggeometrie, Ballwurf, Zustandsautomat, erster/zweiter Aufschlag, Zielsetzung, Flug, Urteil, Rhythmus, Szenenverdrahtung |
+| `verify_swing.cs` | 56 Prüfungen: Zustandsautomat, Trefferurteil, Ziel und Bogen, Ziel-Deadzone, Flug durch die echte Ballsimulation, Netz/Drin/Aus-Bänder, Szenenverdrahtung |
+| `verify_serve.cs` | 73 Prüfungen: Aufschlaggeometrie, Ballwurf, Zustandsautomat, erster/zweiter Aufschlag, Zielsetzung, Flug, Urteil, Rhythmus, Szenenverdrahtung |
 | `sweep_shots.cs` | **Kein Test, ein Stellwerkzeug.** Fährt die Trefferqualität von 0 bis 1 für beide Schläge und alle drei Zonen und meldet, was der Ball tut, plus die Wurfrhythmus-Tabelle. Nach jeder Änderung an `SwingConfig.asset` oder `ServeConfig.asset` laufen lassen |
 | `pose_shot.cs` | Ball für Screenshots eingefroren mitten in den Flug stellen (`SHOT_INDEX`/`STEPS` werden per `sed` ersetzt) |
 | `pose_net_shot.cs` | Dasselbe für einen Netztreffer |
@@ -295,7 +299,7 @@ for f in verify_court verify_ball verify_character verify_swing verify_serve; do
 done
 ```
 
-**Erwartet: 18 / 13 / 21 / 53 / 85 PASS, 0 FAIL** — zusammen 190. Nach jeder Änderung laufen lassen. Neue Mechanik
+**Erwartet: 18 / 13 / 21 / 56 / 73 PASS, 0 FAIL** — zusammen 181. Nach jeder Änderung laufen lassen. Neue Mechanik
 bekommt eine eigene `verify_*.cs`.
 
 ---
@@ -476,24 +480,21 @@ die Richtung soll über einen sichtbaren Marker aus drei Bereichen gewählt werd
 Robo Tennis von Wavedash.
 
 **Was ersetzt wurde:** Die Aufladung war eine zweite Entscheidung, die gegen die erste getimt
-werden musste — man hielt die Taste für die Tiefe und traf gleichzeitig für die Qualität. Jetzt
-gibt es nur noch die eine Entscheidung, *wann* gedrückt wird, und die Qualität allein bestimmt
-die Tiefe:
+werden musste. Jetzt hält man die Taste zum Zielen — das kostet nichts — und lässt im richtigen
+Moment los.
 
-| | Grundschlag | Aufschlag |
-|---|---|---|
-| schlechtester Kontakt | 3,0 m hinter dem Netz | 1,2 m hinter dem Netz |
-| perfekter Kontakt | 10,6 m (1,3 m vor der Grundlinie) | 5,6 m (0,8 m vor der Aufschlaglinie) |
-| Netzband | Qualität bis 0,05 an der Grundlinie, bis 0,10 weiter hinten | bis etwa 0,20 |
+**Die drei Zonen** sind ein tiefes Feld hinter der Aufschlaglinie und zwei kurze davor, links
+und rechts. Die Aufteilung folgt der Aufschlaglinie, liegt also auf Markierungen, die der Platz
+ohnehin hat. Im Aufschlagfeld dasselbe im Kleinen. `AimZones` rechnet beides aus der
+`CourtDefinition`, und der Marker zeichnet sich aus denselben Zahlen — er kann nicht anfangen
+zu lügen, wenn jemand die Tiefen verstellt.
 
-Ins **Aus** kann ein sauberer Schlag jetzt nicht mehr — das war vorher die Strafe für zu langes
-Halten, und mit dem Aufladen fällt sie weg. Fehler entstehen aus verpasstem Ball, zu schlechtem
-Kontakt (Netz) und aus der Streuung nahe den Linien.
-
-**Die drei Zonen** sind Bahnen quer über die gegnerische Hälfte, beim Aufschlag Bahnen quer
-durchs Aufschlagfeld. `AimZones` rechnet sie aus der `CourtDefinition`, und der Marker zeichnet
-sich aus denselben Zahlen — er kann also nicht anfangen zu lügen, wenn jemand die Tiefen
-verstellt.
+**Kurze Bälle brauchen mehr Bogen, nicht weniger.** Der erste Versuch gab allen Zonen dieselbe
+Bogenkurve, worauf die kurzen Zonen bis Trefferqualität 0,5 ins Netz fielen und die tiefe nie —
+genau verkehrt herum. Einen Ball wenige Meter hinter dem Netz aufkommen zu lassen verlangt, ihn
+zu heben und steil fallen zu lassen. Deshalb haben die kurzen Zonen eigene Bogenwerte
+(`ApexShortWeak`/`ApexShortFull`), und ein verzogener kurzer Ball wird ein hoher, langsamer —
+eine Einladung statt eines gelungenen Stoppballs.
 
 **Zwei Funde beim Bauen:**
 

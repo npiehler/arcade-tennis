@@ -24,8 +24,6 @@ namespace ArcadeTennis.Presentation
         [SerializeField] SwingController swing;
         [SerializeField] ServeController serve;
         [SerializeField] CourtDefinition court;
-        [SerializeField] SwingConfig swingConfig;
-        [SerializeField] ServeConfig serveConfig;
 
         [Header("Parts")]
         [SerializeField] Transform ring;
@@ -62,38 +60,49 @@ namespace ArcadeTennis.Presentation
         {
             if (character == null || court == null || ring == null) return;
 
-            // isActiveAndEnabled matters: a switched-off serve controller still
-            // answers IsServing from its last state, and the marker would keep
-            // pointing at a service box during an open rally.
-            bool serving = serve != null && serve.isActiveAndEnabled && serve.IsServing;
-            if (serving ? serveConfig == null : swingConfig == null) return;
+            // isActiveAndEnabled matters: a switched-off controller still answers
+            // from its last state, and the marker would keep pointing somewhere.
+            bool serveAiming = serve != null && serve.isActiveAndEnabled && serve.IsAiming;
+            bool rallyAiming = swing != null && swing.isActiveAndEnabled && swing.IsAiming;
+
+            // The marker is only up while the button is held. Showing it the rest
+            // of the time would make it scenery rather than an answer to "where
+            // am I about to put this".
+            if (!serveAiming && !rallyAiming)
+            {
+                SetVisible(false);
+                return;
+            }
+
+            SetVisible(true);
 
             int side = character.Side;
-            AimZone zone = serving
-                ? (serve != null ? serve.Zone : AimZone.Centre)
-                : (swing != null ? swing.Zone : AimZone.Centre);
+            AimZone zone = serveAiming ? serve.Zone : swing.Zone;
 
-            float radiusX = serving
-                ? AimZones.ServeLaneHalfWidth(court)
-                : AimZones.LaneHalfWidth(court);
+            Vector2 centre = serveAiming
+                ? AimZones.ServeZoneCentre(court, side, serve.DeuceCourt, zone)
+                : AimZones.GroundZoneCentre(court, side, zone);
+            Vector2 extents = serveAiming
+                ? AimZones.ServeZoneExtents(court, zone)
+                : AimZones.GroundZoneExtents(court, zone);
 
-            float near = serving ? serveConfig.WeakDepth : swingConfig.WeakDepth;
-            float far = serving ? serveConfig.StrongDepth : swingConfig.StrongDepth;
-            float radiusZ = Mathf.Max((far - near) * 0.5f, 0.2f);
+            Vector3 spot = AimZones.ToWorld(side, centre.x, centre.y);
+            spot.y = groundOffset;
 
-            float centreX = serving
-                ? AimZones.ServeLaneCentre(court, side, serve.DeuceCourt, zone)
-                : AimZones.LaneCentre(court, side, zone);
-
-            float centreZ = -(side >= 0 ? 1 : -1) * (near + far) * 0.5f;
-            var centre = new Vector3(centreX, groundOffset, centreZ);
-
-            Rebuild(radiusX, radiusZ);
-            ring.position = centre;
+            Rebuild(extents.x, extents.y);
+            ring.position = spot;
             ring.rotation = Quaternion.identity;
 
-            DrawLine(character.transform.position, centre);
-            SetColor(serving ? serveColor : rallyColor);
+            DrawLine(character.transform.position, spot);
+            SetColor(serveAiming ? serveColor : rallyColor);
+        }
+
+        void SetVisible(bool visible)
+        {
+            if (ring != null && ring.gameObject.activeSelf != visible)
+                ring.gameObject.SetActive(visible);
+            if (!visible && line != null && line.gameObject.activeSelf)
+                line.gameObject.SetActive(false);
         }
 
         void Rebuild(float radiusX, float radiusZ)

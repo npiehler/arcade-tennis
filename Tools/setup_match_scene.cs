@@ -271,8 +271,6 @@ aimSo.FindProperty("swing").objectReferenceValue =
 aimSo.FindProperty("serve").objectReferenceValue =
     player.GetComponent<ArcadeTennis.Characters.ServeController>();
 aimSo.FindProperty("court").objectReferenceValue = courtDef;
-aimSo.FindProperty("swingConfig").objectReferenceValue = swingConfig;
-aimSo.FindProperty("serveConfig").objectReferenceValue = serveConfig;
 aimSo.FindProperty("ring").objectReferenceValue = ringGo2.transform;
 aimSo.FindProperty("line").objectReferenceValue = aimLine.transform;
 aimSo.ApplyModifiedPropertiesWithoutUndo();

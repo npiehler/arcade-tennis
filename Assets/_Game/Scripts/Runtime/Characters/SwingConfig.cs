@@ -8,10 +8,9 @@ namespace ArcadeTennis.Characters
     /// a difficulty setting may change when a controller swings, never how good
     /// the swing itself is allowed to be.
     ///
-    /// There is no charge here any more. Where the ball goes is chosen from three
-    /// zones; how well it gets there is decided by the contact alone. That makes
-    /// the stroke a single decision -- when to press -- instead of two that had
-    /// to be timed against each other.
+    /// There is no charge here any more. Holding the button raises the marker and
+    /// lets the player pick one of three zones; letting go swings. How far into
+    /// the chosen zone the ball actually gets is decided by the contact alone.
     ///
     /// Shot variants (topspin, slice, lob, drop) remain out of scope for part 1.
     /// They would arrive as additional assets of this type selected per stroke,
@@ -48,15 +47,10 @@ namespace ArcadeTennis.Characters
         [Range(0f, 1f)][SerializeField] float goodThreshold = 0.45f;
 
         [Header("Depth")]
-        [Tooltip("How deep into the chosen zone the worst contact that still connects " +
-                 "lands. Short, so a mistimed ball is one the opponent can attack -- and " +
-                 "at the very bottom of the range, one that fails to clear the net.")]
-        [SerializeField] float weakDepth = 3.00f;
-
-        [Tooltip("Depth of a flawlessly struck ball, measured from the net. Kept inside " +
-                 "the baseline: with the charge gone, hold time can no longer send a shot " +
-                 "long, so a clean stroke should not do it either.")]
-        [SerializeField] float strongDepth = 10.60f;
+        [Tooltip("How far short of the chosen zone the worst contact that still connects " +
+                 "falls. This is what makes the deep zone a decision: aiming short forgives " +
+                 "bad contact because the zone is close anyway, aiming deep does not.")]
+        [SerializeField] float depthShortfall = 1.50f;
 
         [Tooltip("How far outside the lines a shot may stray at all. Missing has to stay " +
                  "possible, but not by half a court.")]
@@ -84,6 +78,15 @@ namespace ArcadeTennis.Characters
         [Tooltip("Apex above the contact point for flawless contact.")]
         [SerializeField] float apexFull = 1.45f;
 
+        [Tooltip("Apex for a shot into one of the SHORT zones, worst contact. Far higher " +
+                 "than the deep one and not a whim: to drop a ball a few metres past the " +
+                 "net it has to be lofted and come down steeply, and a mishit short ball " +
+                 "should sit up as an invitation rather than turn into a good drop shot.")]
+        [SerializeField] float apexShortWeak = 1.90f;
+
+        [Tooltip("Apex for a short shot at flawless contact: lower and crisper.")]
+        [SerializeField] float apexShortFull = 1.00f;
+
         [Tooltip("Peak height a flawless stroke is guaranteed, so a ball met off the ground " +
                  "can still be got over the net. Scaled by contact quality: the guarantee is " +
                  "something the stroke earns, not something every stab gets for free.")]
@@ -99,8 +102,7 @@ namespace ArcadeTennis.Characters
         public float PerfectThreshold => perfectThreshold;
         public float GoodThreshold => goodThreshold;
 
-        public float WeakDepth => weakDepth;
-        public float StrongDepth => strongDepth;
+        public float DepthShortfall => depthShortfall;
         public float OutMargin => outMargin;
 
         public float MaxSpread => maxSpread;
@@ -109,6 +111,8 @@ namespace ArcadeTennis.Characters
 
         public float ApexWeak => apexWeak;
         public float ApexFull => apexFull;
+        public float ApexShortWeak => apexShortWeak;
+        public float ApexShortFull => apexShortFull;
         public float MinPeakHeight => minPeakHeight;
 
         /// <summary>

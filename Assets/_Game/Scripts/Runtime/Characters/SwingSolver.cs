@@ -8,7 +8,10 @@ namespace ArcadeTennis.Characters
         /// <summary>Ready to start a stroke.</summary>
         Idle,
 
-        /// <summary>Pressed; racket on its way to the ball.</summary>
+        /// <summary>Button held: the marker is up and the zone can still be changed.</summary>
+        Aiming,
+
+        /// <summary>Button released; racket on its way to the ball.</summary>
         Swinging,
 
         /// <summary>Stroke finished; no new stroke can start yet.</summary>
@@ -34,9 +37,6 @@ namespace ArcadeTennis.Characters
 
         /// <summary>Set once the racket has passed the ball, so a swing resolves exactly once.</summary>
         public bool ContactResolved;
-
-        /// <summary>Last tick's button state, so a stroke starts on the press and not on the hold.</summary>
-        public bool ButtonWasDown;
 
         public bool CanStartStroke => Phase == SwingPhase.Idle;
     }
@@ -120,17 +120,22 @@ namespace ArcadeTennis.Characters
             contactDue = false;
             if (config == null) return;
 
-            // Edge-triggered: the stroke is a tap, so holding the button down
-            // must not fire a second one the moment the recovery ends.
-            bool pressed = holding && !state.ButtonWasDown;
-            state.ButtonWasDown = holding;
-
             state.PhaseTime += deltaTime;
 
             switch (state.Phase)
             {
                 case SwingPhase.Idle:
-                    if (pressed)
+                    // Level-triggered on purpose: holding the button through the
+                    // recovery puts the player straight back into aiming, which
+                    // is what a rally needs.
+                    if (holding) Enter(ref state, SwingPhase.Aiming);
+                    break;
+
+                case SwingPhase.Aiming:
+                    // Nothing accumulates here. Holding costs nothing and buys
+                    // nothing except the time to choose a zone -- and the ball
+                    // coming closer while you do.
+                    if (!holding)
                     {
                         Enter(ref state, SwingPhase.Swinging);
                         state.ContactResolved = false;
@@ -236,20 +241,23 @@ namespace ArcadeTennis.Characters
         }
 
         /// <summary>
-        /// How deep the ball is sent. With no charge to hold, this is the whole
-        /// reward for meeting the ball well: a clean stroke goes deep, a mistimed
-        /// one falls short where it can be attacked.
+        /// How far into the chosen zone the ball actually gets. A flawless stroke
+        /// reaches the middle of it; a poor one falls short of it by up to
+        /// <see cref="SwingConfig.DepthShortfall"/>.
+        ///
+        /// That is what makes the deep zone a decision rather than a free choice:
+        /// aiming short forgives bad contact, aiming deep does not.
         /// </summary>
-        public static float ResolveDepth(SwingContact contact, SwingConfig config)
+        public static float ResolveDepth(float zoneDepth, SwingContact contact, SwingConfig config)
         {
-            if (config == null) return 8f;
-            return Mathf.Lerp(config.WeakDepth, config.StrongDepth, Mathf.Clamp01(contact.Quality));
+            if (config == null) return zoneDepth;
+            return zoneDepth - config.DepthShortfall * (1f - Mathf.Clamp01(contact.Quality));
         }
 
         /// <summary>
-        /// Where the return is aimed. The player picks one of three zones; the
-        /// contact decides how deep into it the ball goes and how far it may
-        /// stray from the middle of it.
+        /// Where the return is aimed. The player picks one of three zones while
+        /// the button is held; the contact decides how far into it the ball gets
+        /// and how far it may stray from the middle of it.
         ///
         /// <paramref name="spread"/> is handed in rather than drawn here so the
         /// function stays pure and the verification suite can pin it down; the
@@ -260,7 +268,8 @@ namespace ArcadeTennis.Characters
         {
             if (config == null || court == null) return Vector3.zero;
 
-            Vector3 nominal = AimZones.GroundTarget(court, side, zone, ResolveDepth(contact, config));
+            Vector2 zoneCentre = AimZones.GroundZoneCentre(court, side, zone);
+            float depth = ResolveDepth(zoneCentre.y, contact, config);
 
             float scatter = Mathf.Lerp(config.MaxSpread, config.MinSpread, contact.Quality);
             Vector2 offset = Vector2.ClampMagnitude(spread, 1f) * scatter;
@@ -270,18 +279,13 @@ namespace ArcadeTennis.Characters
             // zone the player chose reads as a broken game.
             offset.x *= config.LateralSpreadFactor;
 
-            int s = side >= 0 ? 1 : -1;
-            float depth = -s * nominal.z + offset.y;
-
             float maxX = court.SinglesHalfWidth + config.OutMargin;
             float maxDepth = court.HalfLength + config.OutMargin;
 
-            // The near limit keeps a wild shot out of the net apron: falling
-            // short has to stay a consequence of poor contact, not something the
-            // spread can ask for.
-            depth = Mathf.Clamp(depth, config.WeakDepth * 0.4f, maxDepth);
+            float x = Mathf.Clamp(zoneCentre.x + offset.x, -maxX, maxX);
+            depth = Mathf.Clamp(depth + offset.y, 0.4f, maxDepth);
 
-            return new Vector3(Mathf.Clamp(nominal.x + offset.x, -maxX, maxX), 0f, -s * depth);
+            return AimZones.ToWorld(side, x, depth);
         }
 
         /// <summary>
@@ -294,12 +298,19 @@ namespace ArcadeTennis.Characters
         /// trajectory that clears the net, and the bottom of the quality range
         /// would stop meaning anything.
         /// </summary>
-        public static float ResolveApex(SwingContact contact, Vector3 contactPoint, SwingConfig config)
+        public static float ResolveApex(AimZone zone, SwingContact contact, Vector3 contactPoint,
+                                        SwingConfig config)
         {
             if (config == null) return 1.5f;
 
             float quality = Mathf.Clamp01(contact.Quality);
-            float apex = Mathf.Lerp(config.ApexWeak, config.ApexFull, quality);
+
+            // The two zone kinds want different flight shapes, not the same one
+            // scaled. A deep ball is driven flat; a short one has to be lofted or
+            // it simply cannot come down that early without hitting the net.
+            float apex = zone == AimZone.Deep
+                ? Mathf.Lerp(config.ApexWeak, config.ApexFull, quality)
+                : Mathf.Lerp(config.ApexShortWeak, config.ApexShortFull, quality);
 
             return Mathf.Max(apex, config.MinPeakHeight * quality - contactPoint.y);
         }

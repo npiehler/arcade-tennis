@@ -5,25 +5,35 @@ namespace ArcadeTennis.Court
     /// <summary>
     /// The three places a shot can be sent, named from the player's own view of
     /// the screen so that "left" is left for whichever end is being played.
+    ///
+    /// Not three lanes across but a deep one and two short ones, which is what
+    /// gives a shot both a length and a side to choose without a second control
+    /// for power. The split follows the service line, so the zones sit on
+    /// markings the court already has.
     /// </summary>
     public enum AimZone
     {
-        Left = -1,
-        Centre = 0,
-        Right = 1,
+        /// <summary>Short and to the player's left. Arrow left.</summary>
+        ShortLeft = -1,
+
+        /// <summary>Deep, down the middle. Arrow up, and what an untouched stick means.</summary>
+        Deep = 0,
+
+        /// <summary>Short and to the player's right. Arrow right.</summary>
+        ShortRight = 1,
     }
 
     /// <summary>
-    /// Turns a chosen zone into a spot on the court, and back out into the
-    /// rectangle a marker has to draw.
-    ///
-    /// Three discrete zones rather than a continuous stick because that is the
-    /// whole point: the player can see exactly which of three places the ball is
-    /// going, and a keyboard -- which only ever says left, nothing or right --
-    /// can express it without loss.
+    /// Turns a chosen zone into a spot on the court and into the patch of ground
+    /// a marker has to draw.
     ///
     /// Pure geometry over <see cref="CourtDefinition"/>, so the marker on screen
-    /// and the target the ball is actually sent to cannot disagree.
+    /// and the target the ball is sent to cannot drift apart: both read these
+    /// same functions.
+    ///
+    /// Everything here works in "depth" -- distance from the net towards the
+    /// receiver -- and only converts to a world z at the very end, which keeps
+    /// the sign handling in one place instead of scattered through the callers.
     /// </summary>
     public static class AimZones
     {
@@ -32,70 +42,87 @@ namespace ArcadeTennis.Court
 
         static int Sign(int side) => side >= 0 ? 1 : -1;
 
-        /// <summary>Half width of one rally lane. Three lanes span the singles court.</summary>
-        public static float LaneHalfWidth(CourtDefinition court) =>
-            court == null ? 1f : court.SinglesHalfWidth / 3f;
+        // --- rally -----------------------------------------------------------
 
-        /// <summary>Half width of one serve lane. Three lanes span the service box.</summary>
-        public static float ServeLaneHalfWidth(CourtDefinition court) =>
-            court == null ? 1f : court.SinglesHalfWidth / 6f;
-
-        /// <summary>Centre of a rally lane on the X axis, in world space.</summary>
-        public static float LaneCentre(CourtDefinition court, int side, AimZone zone)
+        /// <summary>Centre of a rally zone as (x, depth from the net).</summary>
+        public static Vector2 GroundZoneCentre(CourtDefinition court, int side, AimZone zone)
         {
-            if (court == null) return 0f;
-            return (int)zone * Mirror(side) * (court.SinglesHalfWidth * 2f / 3f);
+            if (court == null) return Vector2.zero;
+
+            float serviceLine = court.ServiceLineDistance;
+            float baseline = court.HalfLength;
+
+            if (zone == AimZone.Deep)
+                return new Vector2(0f, (serviceLine + baseline) * 0.5f);
+
+            float lateral = court.SinglesHalfWidth * 0.5f * (int)zone * Mirror(side);
+            return new Vector2(lateral, serviceLine * 0.58f);
         }
 
-        /// <summary>Where a rally shot into <paramref name="zone"/> is aimed.</summary>
-        public static Vector3 GroundTarget(CourtDefinition court, int side, AimZone zone, float depth)
+        /// <summary>Half width and half depth of a rally zone.</summary>
+        public static Vector2 GroundZoneExtents(CourtDefinition court, AimZone zone)
         {
-            if (court == null) return Vector3.zero;
-            return new Vector3(LaneCentre(court, side, zone), 0f, -Sign(side) * depth);
+            if (court == null) return Vector2.one;
+
+            if (zone == AimZone.Deep)
+                return new Vector2(court.SinglesHalfWidth * 0.62f,
+                    (court.HalfLength - court.ServiceLineDistance) * 0.5f);
+
+            return new Vector2(court.SinglesHalfWidth * 0.5f, court.ServiceLineDistance * 0.42f);
         }
 
-        /// <summary>
-        /// Centre of a serve lane. Anchored to the service box the server has to
-        /// hit rather than to the court, so the middle zone really is the middle
-        /// of that box -- and because the box a server faces is always the
-        /// diagonal one, pushing right still means right on screen.
-        /// </summary>
-        public static float ServeLaneCentre(CourtDefinition court, int serverSide, bool deuceCourt,
-                                            AimZone zone)
+        // --- serve -----------------------------------------------------------
+
+        /// <summary>Centre of a serve zone as (x, depth from the net), inside the required box.</summary>
+        public static Vector2 ServeZoneCentre(CourtDefinition court, int serverSide, bool deuceCourt,
+                                              AimZone zone)
         {
-            if (court == null) return 0f;
+            if (court == null) return Vector2.zero;
 
             Rect box = court.GetServiceBox(-Sign(serverSide), deuceCourt);
-            float t = 0.5f + (int)zone * Mirror(serverSide) / 3f;
-            return Mathf.Lerp(box.xMin, box.xMax, t);
+            float boxCentre = box.center.x;
+            float boxHalf = box.width * 0.5f;
+
+            if (zone == AimZone.Deep)
+                return new Vector2(boxCentre, court.ServiceLineDistance * 0.80f);
+
+            float lateral = boxCentre + boxHalf * 0.5f * (int)zone * Mirror(serverSide);
+            return new Vector2(lateral, court.ServiceLineDistance * 0.45f);
         }
 
-        /// <summary>Where a serve into <paramref name="zone"/> is aimed.</summary>
-        public static Vector3 ServeTarget(CourtDefinition court, int serverSide, bool deuceCourt,
-                                          AimZone zone, float depth)
+        /// <summary>Half width and half depth of a serve zone.</summary>
+        public static Vector2 ServeZoneExtents(CourtDefinition court, AimZone zone)
         {
-            if (court == null) return Vector3.zero;
-            return new Vector3(ServeLaneCentre(court, serverSide, deuceCourt, zone), 0f,
-                               -Sign(serverSide) * depth);
+            if (court == null) return Vector2.one;
+
+            Rect box = court.GetServiceBox(1, true);
+            float boxHalf = box.width * 0.5f;
+
+            if (zone == AimZone.Deep)
+                return new Vector2(boxHalf * 0.85f, court.ServiceLineDistance * 0.18f);
+
+            return new Vector2(boxHalf * 0.5f, court.ServiceLineDistance * 0.26f);
         }
 
-        /// <summary>Moves the selection one lane, stopping at the outside ones.</summary>
-        public static AimZone Step(AimZone zone, int direction)
-        {
-            if (direction == 0) return zone;
-            return (AimZone)Mathf.Clamp((int)zone + (direction > 0 ? 1 : -1), -1, 1);
-        }
+        // --- shared ----------------------------------------------------------
+
+        /// <summary>Turns a zone centre and a depth into a world point on the far side.</summary>
+        public static Vector3 ToWorld(int side, float x, float depth) =>
+            new Vector3(x, 0f, -Sign(side) * depth);
 
         /// <summary>
-        /// Reads a stick or key pair as a lane. The deadzone is the caller's to
-        /// apply; anything past half deflection counts as a full lean, which is
-        /// what makes a keyboard and a stick behave the same.
+        /// Reads the direction keys as a zone while the swing button is held.
+        /// Up asks for the deep zone, left and right for the short ones; the
+        /// stronger axis wins so a diagonal cannot mean two things at once.
         /// </summary>
-        public static AimZone FromInput(float x, AimZone current)
+        public static AimZone FromInput(Vector2 input, AimZone fallback)
         {
-            if (x <= -0.5f) return AimZone.Left;
-            if (x >= 0.5f) return AimZone.Right;
-            return current;
+            if (Mathf.Abs(input.y) > Mathf.Abs(input.x))
+                return input.y >= 0.5f ? AimZone.Deep : fallback;
+
+            if (input.x <= -0.5f) return AimZone.ShortLeft;
+            if (input.x >= 0.5f) return AimZone.ShortRight;
+            return fallback;
         }
     }
 }

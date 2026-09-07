@@ -20,16 +20,20 @@ var ballCfg = UnityEditor.AssetDatabase.LoadAssetAtPath<ArcadeTennis.BallPhysics
 float dt = 0.02f;
 var sb = new System.Text.StringBuilder();
 var zones = new ArcadeTennis.Court.AimZone[] {
-    ArcadeTennis.Court.AimZone.Left,
-    ArcadeTennis.Court.AimZone.Centre,
-    ArcadeTennis.Court.AimZone.Right };
+    ArcadeTennis.Court.AimZone.ShortLeft,
+    ArcadeTennis.Court.AimZone.Deep,
+    ArcadeTennis.Court.AimZone.ShortRight };
 
 sb.AppendLine("Trefferqualitaet 0.00 -> 1.00 in 0.05-Schritten   n = Netz, . = drin, o = daneben");
 sb.AppendLine();
-sb.AppendLine("GRUNDSCHLAG   Tiefe " + cfg.WeakDepth.ToString("0.0") + " .. " + cfg.StrongDepth.ToString("0.0")
+sb.AppendLine("GRUNDSCHLAG   Rueckstand bei schlechtem Kontakt " + cfg.DepthShortfall.ToString("0.0")
     + " m   Bogen " + cfg.ApexWeak.ToString("0.00") + " .. " + cfg.ApexFull.ToString("0.00")
     + "   Streuung " + cfg.MaxSpread.ToString("0.0") + " .. " + cfg.MinSpread.ToString("0.00")
     + " (seitlich " + (cfg.LateralSpreadFactor * 100f).ToString("0") + " %)");
+foreach (var z in zones)
+    sb.AppendLine("    Zone " + z.ToString().PadRight(11)
+        + "Mitte " + ArcadeTennis.Court.AimZones.GroundZoneCentre(court, -1, z).ToString("0.00")
+        + "  Ausdehnung " + ArcadeTennis.Court.AimZones.GroundZoneExtents(court, z).ToString("0.00"));
 
 foreach (float cz in new float[] { -6f, -11f, -13.5f })
 foreach (var zone in zones)
@@ -42,19 +46,22 @@ foreach (var zone in zones)
         var t = ArcadeTennis.Characters.SwingSolver.ResolveTarget(-1, zone, c, cfg, court,
             UnityEngine.Vector2.zero);
         var v = ArcadeTennis.BallPhysics.BallSimulation.SolveLaunchVelocity(from, t,
-            ArcadeTennis.Characters.SwingSolver.ResolveApex(c, from, cfg), ballCfg, court, dt);
+            ArcadeTennis.Characters.SwingSolver.ResolveApex(zone, c, from, cfg), ballCfg, court, dt);
         var p = ArcadeTennis.BallPhysics.BallSimulation.Predict(
             new ArcadeTennis.BallPhysics.BallState(from, v), ballCfg, court, dt);
         line.Append(!p.HasResult ? "?" : p.IsNetHit ? "n"
             : (court.IsInBounds(p.Position) && p.Position.z > 0f ? "." : "o"));
     }
-    sb.AppendLine("  z=" + cz.ToString("0.0").PadLeft(6) + "  " + zone.ToString().PadRight(7) + line);
+    sb.AppendLine("  z=" + cz.ToString("0.0").PadLeft(6) + "  " + zone.ToString().PadRight(11) + line);
 }
 
 sb.AppendLine();
-sb.AppendLine("AUFSCHLAG     Tiefe " + srv.WeakDepth.ToString("0.0") + " .. " + srv.StrongDepth.ToString("0.0")
+sb.AppendLine("AUFSCHLAG     Rueckstand " + srv.DepthShortfall.ToString("0.0")
     + " m   Bogen " + srv.ApexWeak.ToString("0.00") + " .. " + srv.ApexFull.ToString("0.00")
     + "   Aufschlaglinie bei " + court.ServiceLineDistance + " m");
+foreach (var z in zones)
+    sb.AppendLine("    Zone " + z.ToString().PadRight(11)
+        + "Mitte " + ArcadeTennis.Court.AimZones.ServeZoneCentre(court, -1, true, z).ToString("0.00"));
 
 foreach (bool deuce in new bool[] { true, false })
 foreach (var zone in zones)
@@ -74,7 +81,7 @@ foreach (var zone in zones)
         line.Append(!p.HasResult ? "?" : p.IsNetHit ? "n"
             : (court.IsInServiceBox(p.Position, 1, deuce) ? "." : "o"));
     }
-    sb.AppendLine("  " + (deuce ? "Einstand" : "Vorteil ") + "  " + zone.ToString().PadRight(7) + line);
+    sb.AppendLine("  " + (deuce ? "Einstand" : "Vorteil ") + "  " + zone.ToString().PadRight(11) + line);
 }
 
 // Der Wurfrhythmus: wann der zweite Tastendruck kommt, entscheidet die Qualitaet.
@@ -100,7 +107,7 @@ for (float strike = 0f; strike <= 1.05f; strike += 0.05f)
     if (contact.Made)
     {
         var t2 = ArcadeTennis.Characters.ServeSolver.ResolveTarget(-1, true,
-            ArcadeTennis.Court.AimZone.Centre, contact, srv, court, UnityEngine.Vector2.zero);
+            ArcadeTennis.Court.AimZone.Deep, contact, srv, court, UnityEngine.Vector2.zero);
         var v = ArcadeTennis.BallPhysics.BallSimulation.SolveLaunchVelocity(hitCentre, t2,
             ArcadeTennis.Characters.ServeSolver.ResolveApex(contact, srv), ballCfg, court, dt);
         var p = ArcadeTennis.BallPhysics.BallSimulation.Predict(

@@ -54,14 +54,10 @@ namespace ArcadeTennis.Characters
         [Range(0f, 1f)][SerializeField] float goodThreshold = 0.45f;
 
         [Header("Depth")]
-        [Tooltip("How deep into the box the worst contact that still connects lands. Short " +
-                 "enough that a badly met toss drops into the net -- meeting the ball well " +
-                 "is the whole skill of the serve now that there is no charge.")]
-        [SerializeField] float weakDepth = 1.20f;
-
-        [Tooltip("Depth of a flawlessly struck serve, measured from the net. Inside the " +
-                 "service line, so a clean serve is a good serve rather than a gamble.")]
-        [SerializeField] float strongDepth = 5.60f;
+        [Tooltip("How far short of the chosen zone a badly met toss falls. Large enough " +
+                 "that the worst contact drops into the net: meeting the ball well is the " +
+                 "whole skill of the serve now that there is no charge.")]
+        [SerializeField] float depthShortfall = 1.10f;
 
         [Tooltip("How far outside the box a serve may stray at all.")]
         [SerializeField] float outMargin = 1.60f;
@@ -101,8 +97,7 @@ namespace ArcadeTennis.Characters
         public float PerfectThreshold => perfectThreshold;
         public float GoodThreshold => goodThreshold;
 
-        public float WeakDepth => weakDepth;
-        public float StrongDepth => strongDepth;
+        public float DepthShortfall => depthShortfall;
         public float OutMargin => outMargin;
 
         public float MaxSpread => maxSpread;
