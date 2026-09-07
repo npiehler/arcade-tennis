@@ -28,6 +28,7 @@ MonoBehaviour:
   outMargin: 2.2
   maxSpread: 3
   minSpread: 0.12
+  lateralSpreadFactor: 0.3
   minQualityPower: 0.8
   apexWeak: 0.5
   apexFull: 1.45

@@ -78,6 +78,11 @@ namespace ArcadeTennis.Characters
         [SerializeField] float maxSpread = 1.50f;
         [SerializeField] float minSpread = 0.10f;
 
+        [Tooltip("Share of the spread that may push the serve sideways. Same reasoning as " +
+                 "the groundstroke's, and it matters more here: the service box is narrow " +
+                 "and a sideways slip is the difference between a serve and a fault.")]
+        [Range(0f, 1f)][SerializeField] float lateralSpreadFactor = 0.35f;
+
         [Range(0f, 1f)][SerializeField] float minQualityPower = 0.80f;
 
         [Header("Arc")]
@@ -112,6 +117,7 @@ namespace ArcadeTennis.Characters
 
         public float MaxSpread => maxSpread;
         public float MinSpread => minSpread;
+        public float LateralSpreadFactor => lateralSpreadFactor;
         public float MinQualityPower => minQualityPower;
 
         public float ApexWeak => apexWeak;

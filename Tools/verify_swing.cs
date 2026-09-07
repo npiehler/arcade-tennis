@@ -240,8 +240,41 @@ float cleanScatter = UnityEngine.Mathf.Abs(
     aimAt(-1, 1f, UnityEngine.Vector2.zero, perfect, edgeSpread).x);
 float sloppyScatter = UnityEngine.Mathf.Abs(
     aimAt(-1, 1f, UnityEngine.Vector2.zero, sloppy, edgeSpread).x);
-check("clean contact scatters less than poor contact", cleanScatter < sloppyScatter - 1f);
+check("clean contact scatters less than poor contact", cleanScatter < sloppyScatter * 0.3f);
 check("even flawless contact scatters a little", cleanScatter > 0.01f);
+
+// --- the aim has to survive the spread ------------------------------
+// Sideways slip is held far below length error on purpose: a shot that lands
+// short reads as the player's own mistiming, but one that ignores the
+// direction they asked for reads as a broken game. These pin that down.
+float worstCentre = 0f;
+float nearestLeft = 99f;
+float worstDepthSlip = 0f;
+
+for (float q = 0f; q <= 1.0001f; q += 0.1f)
+{
+    var judged = new ArcadeTennis.Characters.SwingContact { Made = true, Quality = q };
+    for (int i = 0; i < 64; i++)
+    {
+        float a = i / 64f * UnityEngine.Mathf.PI * 2f;
+        var spread = new UnityEngine.Vector2(UnityEngine.Mathf.Cos(a), UnityEngine.Mathf.Sin(a));
+
+        var centred = aimAt(-1, 0.55f, UnityEngine.Vector2.zero, judged, spread);
+        var leftward = aimAt(-1, 0.55f, new UnityEngine.Vector2(-1f, 0f), judged, spread);
+        var nominalDepth = aimAt(-1, 0.55f, UnityEngine.Vector2.zero, judged, UnityEngine.Vector2.zero);
+
+        worstCentre = UnityEngine.Mathf.Max(worstCentre, UnityEngine.Mathf.Abs(centred.x));
+        nearestLeft = UnityEngine.Mathf.Min(nearestLeft, UnityEngine.Mathf.Abs(leftward.x));
+        worstDepthSlip = UnityEngine.Mathf.Max(worstDepthSlip,
+            UnityEngine.Mathf.Abs(centred.z - nominalDepth.z));
+    }
+}
+
+check("with no direction pressed the ball goes essentially straight, at any contact quality",
+    worstCentre < 1.0f);
+check("aiming sideways never lands where not aiming could have",
+    nearestLeft > worstCentre);
+check("length is punished harder than direction", worstDepthSlip > worstCentre * 2f);
 
 float maxX = court.SinglesHalfWidth + cfg.OutMargin;
 float maxZ = court.HalfLength + cfg.OutMargin;

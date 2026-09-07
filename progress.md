@@ -116,6 +116,17 @@ if isinstance(r, str):
 `editor_play` und `editor_stop` kommt oft „Network error" oder „No Unity Editor instances
 found". Das ist normal — in einer Schleife auf `unity status` warten, nicht abbrechen.
 
+**Ein Skript-Neuübersetzen im laufenden Play Mode lädt die Domain neu.** Private Felder mit
+*Unity-Objekt*-Referenzen überleben das, **einfache verwaltete Objekte nicht** — sie kommen als
+`null` zurück, und es läuft kein `Awake` mehr, das sie repariert. Ein `MaterialPropertyBlock`,
+der nur in `Awake` erzeugt wird, ist danach weg, während der `Renderer` daneben noch steht.
+
+Das ist nicht kosmetisch: `BallLandingMarker` setzt seine Farbe aus dem `Launched`-Ereignis des
+Balls, also flog die Ausnahme aus `Ball.Launch` heraus und **jeder Ballwurf danach schlug fehl**
+— mit der Meldung „Value cannot be null. Parameter name: dest", die auf einen Texturparameter
+zeigt und nirgendwo in die Nähe der Ursache. Solche Felder deshalb bei Bedarf erzeugen
+(`properties ??= new MaterialPropertyBlock()`), nicht nur in `Awake`.
+
 ### Play Mode — drei Stolperfallen
 
 1. **Das Play Mode tickt nur mit Unity-Fensterfokus.** Auch mit aktivem `Run In Background`
@@ -235,8 +246,8 @@ nächsten Rebuild verloren.
 | `verify_court.cs` | 18 Prüfungen: Maße, Aus/Drin, Aufschlagfelder, Netz, generierte Geometrie |
 | `verify_ball.cs` | 13 Prüfungen: Vorhersagegenauigkeit, Solver, Netz, Tunneling, Energieverlust |
 | `verify_character.cs` | 21 Prüfungen: Steuerung, Tempo, Bremsen, Grenzen, Netzlinie, Szenenverdrahtung |
-| `verify_swing.cs` | 60 Prüfungen: Zustandsautomat, Trefferurteil, Ziel und Bogen, Ziel-Deadzone, Flug durch die echte Ballsimulation, Netz/Drin/Aus-Bänder, Szenenverdrahtung |
-| `verify_serve.cs` | 68 Prüfungen: Aufschlaggeometrie, Ballwurf, Zustandsautomat, erster/zweiter Aufschlag, Zielsetzung, Flug, Urteil, Rhythmus, Szenenverdrahtung |
+| `verify_swing.cs` | 63 Prüfungen: Zustandsautomat, Trefferurteil, Ziel und Bogen, Ziel-Deadzone, Flug durch die echte Ballsimulation, Netz/Drin/Aus-Bänder, Szenenverdrahtung |
+| `verify_serve.cs` | 69 Prüfungen: Aufschlaggeometrie, Ballwurf, Zustandsautomat, erster/zweiter Aufschlag, Zielsetzung, Flug, Urteil, Rhythmus, Szenenverdrahtung |
 | `sweep_charge.cs` | **Kein Test, ein Stellwerkzeug.** Fährt die Aufladung von 0 bis 1 und meldet, was der Ball tut — nach jeder Änderung an `SwingConfig.asset` laufen lassen |
 | `sweep_serve.cs` | Dasselbe für den Aufschlag, plus die **Wurfrhythmus-Tabelle**: wann losgelassen wird, wo der Ball dann ist, was dabei herauskommt |
 | `pose_shot.cs` | Ball für Screenshots eingefroren mitten in den Flug stellen (`SHOT_INDEX`/`STEPS` werden per `sed` ersetzt) |
@@ -254,7 +265,7 @@ for f in verify_court verify_ball verify_character verify_swing verify_serve; do
 done
 ```
 
-**Erwartet: 18 / 13 / 21 / 60 / 68 PASS, 0 FAIL** — zusammen 180. Nach jeder Änderung laufen lassen. Neue Mechanik
+**Erwartet: 18 / 13 / 21 / 63 / 69 PASS, 0 FAIL** — zusammen 184. Nach jeder Änderung laufen lassen. Neue Mechanik
 bekommt eine eigene `verify_*.cs`.
 
 ---
@@ -333,6 +344,11 @@ Beide Hälften werden **multipliziert**, nicht gemittelt: perfektes Timing soll 
 
 Weiter:
 
+- **Seitliche Streuung ist auf 30 % der Streuung gedeckelt** (`LateralSpreadFactor`). Der
+  Grund ist keine Feinabstimmung, sondern eine Unterscheidung: die *Länge* daneben ist die
+  eigene Fehlzeit und liest sich als fair, die *Richtung* daneben ist das, worum der Spieler
+  gebeten hat, und liest sich als kaputtes Spiel. Ohne den Deckel landete ein Schlag ohne
+  Richtungstaste bei Qualität 0,4 irgendwo zwischen −1,8 m und +1,8 m; jetzt bei ±0,55 m
 - **Aufladung → Tiefe, Aim → Breite, Qualität → Streuung.** Die Aufladung spannt vom Netzfuß
   (0,60 m dahinter) bis 1,70 m **hinter** die gegnerische Grundlinie, also über beide Fehler
   hinaus. Zu kurz gedrückt fällt der Ball ins Netz, zu lang gedrückt geht er ins Aus

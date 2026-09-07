@@ -33,6 +33,20 @@ namespace ArcadeTennis.BallPhysics
             if (marker != null) markerRenderer = marker.GetComponent<Renderer>();
         }
 
+        /// <summary>
+        /// The block has to be fetched rather than assumed. A script recompile
+        /// while play mode is running reloads the domain, and that keeps private
+        /// references to Unity objects but drops plain managed ones -- so this
+        /// field comes back null while <see cref="markerRenderer"/> beside it
+        /// survives, and no Awake runs to repair it.
+        ///
+        /// That is not cosmetic. The colour is set from the ball's Launched
+        /// event, so a null block throws straight out of Ball.Launch and every
+        /// launch after a recompile fails, with an error that names a texture
+        /// parameter and points nowhere near here.
+        /// </summary>
+        MaterialPropertyBlock Properties => properties ??= new MaterialPropertyBlock();
+
         void OnEnable()
         {
             if (ball == null) return;
@@ -100,10 +114,11 @@ namespace ArcadeTennis.BallPhysics
         void SetColor(Color color)
         {
             if (markerRenderer == null) return;
-            markerRenderer.GetPropertyBlock(properties);
-            properties.SetColor("_BaseColor", color);
-            properties.SetColor("_EmissionColor", color * 0.6f);
-            markerRenderer.SetPropertyBlock(properties);
+            MaterialPropertyBlock block = Properties;
+            markerRenderer.GetPropertyBlock(block);
+            block.SetColor("_BaseColor", color);
+            block.SetColor("_EmissionColor", color * 0.6f);
+            markerRenderer.SetPropertyBlock(block);
         }
 
         void Show(bool visible)

@@ -308,6 +308,11 @@ namespace ArcadeTennis.Characters
             float scatter = Mathf.Lerp(config.MaxSpread, config.MinSpread, contact.Quality);
             Vector2 offset = Vector2.ClampMagnitude(spread, 1f) * scatter;
 
+            // Sideways slip is kept far smaller than length error. A shot that
+            // lands short reads as "I mistimed that"; a shot that ignores the
+            // direction the player asked for reads as a broken game.
+            offset.x *= config.LateralSpreadFactor;
+
             float maxX = court.SinglesHalfWidth + config.OutMargin;
             float maxDepth = court.HalfLength + config.OutMargin;
 

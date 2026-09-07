@@ -199,6 +199,25 @@ for (int i = 0; i < 48; i++)
 }
 check("volles Seitwaerts-Zielen bleibt bei perfektem Kontakt im Feld", wideStaysIn);
 
+// Ohne Richtungseingabe muss der Aufschlag in die Mitte des Feldes gehen --
+// bei jeder Trefferqualitaet, nicht nur bei der perfekten.
+float worstCentreSlip = 0f;
+for (float q = 0f; q <= 1.0001f; q += 0.1f)
+{
+    var judged = new ArcadeTennis.Characters.SwingContact { Made = true, Quality = q };
+    for (int i = 0; i < 48; i++)
+    {
+        float a = i / 48f * UnityEngine.Mathf.PI * 2f;
+        var spread = new UnityEngine.Vector2(UnityEngine.Mathf.Cos(a), UnityEngine.Mathf.Sin(a));
+        var t = ArcadeTennis.Characters.ServeSolver.ResolveTarget(-1, true, 0.5f,
+            UnityEngine.Vector2.zero, judged, cfg, court, spread);
+        worstCentreSlip = UnityEngine.Mathf.Max(worstCentreSlip,
+            UnityEngine.Mathf.Abs(t.x - boxDeuce.center.x));
+    }
+}
+check("ohne Richtungseingabe zielt der Aufschlag in die Feldmitte",
+    worstCentreSlip < boxDeuce.width * 0.35f);
+
 // =========================================================================
 // Flug durch die echte Simulation
 // =========================================================================

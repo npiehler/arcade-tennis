@@ -199,6 +199,7 @@ namespace ArcadeTennis.Characters
 
             float scatter = Mathf.Lerp(config.MaxSpread, config.MinSpread, contact.Quality);
             Vector2 offset = Vector2.ClampMagnitude(spread, 1f) * scatter;
+            offset.x *= config.LateralSpreadFactor;
 
             float x = lateral + offset.x;
             float finalDepth = depth + offset.y;

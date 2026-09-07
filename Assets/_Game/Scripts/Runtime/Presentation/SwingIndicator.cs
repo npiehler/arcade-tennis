@@ -142,6 +142,11 @@ namespace ArcadeTennis.Presentation
         void SetColor(Color color)
         {
             if (fillRenderer == null) return;
+
+            // Same reason as BallLandingMarker: a domain reload in play mode
+            // drops this field but keeps the renderer beside it.
+            properties ??= new MaterialPropertyBlock();
+
             fillRenderer.GetPropertyBlock(properties);
             properties.SetColor("_BaseColor", color);
             properties.SetColor("_EmissionColor", color * 0.8f);

@@ -86,6 +86,13 @@ namespace ArcadeTennis.Characters
                  "same input always lands on the same square centimetre feels mechanical.")]
         [SerializeField] float minSpread = 0.12f;
 
+        [Tooltip("Share of the spread that is allowed to push the ball SIDEWAYS. Small on " +
+                 "purpose. Depth is the player's own mistiming and reads as fair when it " +
+                 "goes wrong, but direction is what they asked for -- scattering that reads " +
+                 "as the game ignoring the input, not as a punishment. Length pays for bad " +
+                 "contact; aim is honoured.")]
+        [Range(0f, 1f)][SerializeField] float lateralSpreadFactor = 0.30f;
+
         [Tooltip("Share of the charge a worst-case contact still delivers. Kept high so " +
                  "that hold time, not contact quality, decides depth -- otherwise the " +
                  "charge is not learnable and a mistimed full swing quietly stays in. " +
@@ -126,6 +133,7 @@ namespace ArcadeTennis.Characters
 
         public float MaxSpread => maxSpread;
         public float MinSpread => minSpread;
+        public float LateralSpreadFactor => lateralSpreadFactor;
         public float MinQualityPower => minQualityPower;
 
         /// <summary>
