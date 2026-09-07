@@ -38,25 +38,20 @@ namespace ArcadeTennis.Presentation
                  "this is a serve or a rally.")]
         [SerializeField] Color markerColor = new Color(0.45f, 0.85f, 1f, 1f);
 
-        MeshFilter ringFilter;
-        Renderer ringRenderer;
-        Renderer lineRenderer;
         MaterialPropertyBlock properties;
         Mesh mesh;
 
         float builtRadiusX = -1f;
         float builtRadiusZ = -1f;
 
-        void Awake()
-        {
-            properties = new MaterialPropertyBlock();
-            if (ring != null)
-            {
-                ringFilter = ring.GetComponent<MeshFilter>();
-                ringRenderer = ring.GetComponent<Renderer>();
-            }
-            if (line != null) lineRenderer = line.GetComponent<Renderer>();
-        }
+        // Everything cached in Awake was a way to be caught out: a script recompile
+        // while play mode is running reloads the domain, Awake does not run again,
+        // and whatever it had set up is gone or stale. These are cheap lookups on
+        // objects this component already holds, so they are simply fetched when
+        // needed instead.
+        MeshFilter RingFilter => ring != null ? ring.GetComponent<MeshFilter>() : null;
+        Renderer RingRenderer => ring != null ? ring.GetComponent<Renderer>() : null;
+        Renderer LineRenderer => line != null ? line.GetComponent<Renderer>() : null;
 
         void LateUpdate()
         {
@@ -109,8 +104,15 @@ namespace ArcadeTennis.Presentation
 
         void Rebuild(float radiusX, float radiusZ)
         {
-            if (ringFilter == null) return;
-            if (Mathf.Approximately(builtRadiusX, radiusX) && Mathf.Approximately(builtRadiusZ, radiusZ))
+            MeshFilter filter = RingFilter;
+            if (filter == null) return;
+
+            // Keyed off the mesh that is actually there, not off the remembered
+            // radii: a domain reload destroys HideAndDontSave meshes while those
+            // plain floats survive, and the ring would never be built again.
+            if (filter.sharedMesh != null
+                && Mathf.Approximately(builtRadiusX, radiusX)
+                && Mathf.Approximately(builtRadiusZ, radiusZ))
                 return;
 
             if (mesh != null)
@@ -121,7 +123,7 @@ namespace ArcadeTennis.Presentation
 
             mesh = EllipseRingMesh.Create(radiusX, radiusZ, ringThickness);
             mesh.hideFlags = HideFlags.HideAndDontSave;
-            ringFilter.sharedMesh = mesh;
+            filter.sharedMesh = mesh;
 
             builtRadiusX = radiusX;
             builtRadiusZ = radiusZ;
@@ -154,8 +156,10 @@ namespace ArcadeTennis.Presentation
             properties.SetColor("_BaseColor", color);
             properties.SetColor("_EmissionColor", color * 0.7f);
 
-            if (ringRenderer != null) ringRenderer.SetPropertyBlock(properties);
-            if (lineRenderer != null) lineRenderer.SetPropertyBlock(properties);
+            Renderer ringR = RingRenderer;
+            Renderer lineR = LineRenderer;
+            if (ringR != null) ringR.SetPropertyBlock(properties);
+            if (lineR != null) lineR.SetPropertyBlock(properties);
         }
 
         void OnDestroy()

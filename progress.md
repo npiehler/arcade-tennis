@@ -153,7 +153,13 @@ if isinstance(r, str):
 `editor_play` und `editor_stop` kommt oft „Network error" oder „No Unity Editor instances
 found". Das ist normal — in einer Schleife auf `unity status` warten, nicht abbrechen.
 
-**Ein Skript-Neuübersetzen im laufenden Play Mode lädt die Domain neu.** Private Felder mit
+**Ein Skript-Neuübersetzen im laufenden Play Mode lädt die Domain neu.** Das hat in diesem
+Projekt inzwischen zweimal zugeschlagen — einmal beim `MaterialPropertyBlock` des Landemarkers,
+einmal beim zur Laufzeit erzeugten Ringmesh des Zielmarkers. Beide Male überlebte die
+Buchführung (ein gemerkter Radius, eine Objektreferenz) und das eigentliche Objekt nicht, worauf
+der Code sich für fertig hielt. **Regel: nichts in `Awake` zwischenspeichern, was danach nicht
+mehr repariert werden kann** — Komponenten bei Bedarf holen, und Wiederaufbau-Entscheidungen am
+tatsächlichen Zustand festmachen (`sharedMesh == null`), nicht an gemerkten Zahlen. Private Felder mit
 *Unity-Objekt*-Referenzen überleben das, **einfache verwaltete Objekte nicht** — sie kommen als
 `null` zurück, und es läuft kein `Awake` mehr, das sie repariert. Ein `MaterialPropertyBlock`,
 der nur in `Awake` erzeugt wird, ist danach weg, während der `Renderer` daneben noch steht.

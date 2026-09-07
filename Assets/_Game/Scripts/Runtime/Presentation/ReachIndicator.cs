@@ -25,7 +25,10 @@ namespace ArcadeTennis.Presentation
         {
             if (character == null) return;
 
-            if (!Mathf.Approximately(builtRadius, character.ReachRadius)) Rebuild();
+            // Same reason as AimZoneIndicator: a domain reload in play mode destroys
+            // the generated mesh while the remembered radius survives.
+            if (GetComponent<MeshFilter>().sharedMesh == null
+                || !Mathf.Approximately(builtRadius, character.ReachRadius)) Rebuild();
 
             Vector3 position = character.transform.position;
             transform.position = new Vector3(position.x, groundOffset, position.z);
