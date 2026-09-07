@@ -91,12 +91,19 @@ namespace ArcadeTennis.Characters
             PrepareForServe();
         }
 
-        /// <summary>Retakes the current serve without changing the count, after a fault.</summary>
+        /// <summary>
+        /// Readies the next serve without changing the count, after a fault.
+        ///
+        /// Deliberately does NOT move the server. Where to stand is the player's
+        /// choice -- they walk there with the direction keys -- and yanking the
+        /// character back to a computed spot between points was jarring, on top
+        /// of taking away a decision that was meant to be theirs. Foot faults are
+        /// a rule and belong to the rule engine.
+        /// </summary>
         public void PrepareForServe()
         {
             awaitingVerdict = false;
             if (ball != null) ball.Stop();
-            if (character != null) character.Teleport(ServePosition);
             ApplyRallyHold();
         }
 

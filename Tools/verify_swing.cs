@@ -155,6 +155,27 @@ foreach (var z in new ArcadeTennis.Court.AimZone[] { ArcadeTennis.Court.AimZone.
 }
 check("every zone lies wholly inside the opponent's half", zonesInside);
 
+// Three zones that lie on top of each other are not three fields, however
+// honestly each one is drawn. The deep serve ring used to cover both short
+// ones, and the marker-lands-in-the-ring test passed the whole time.
+System.Func<UnityEngine.Vector2, UnityEngine.Vector2, UnityEngine.Vector2,
+            UnityEngine.Vector2, bool> overlaps =
+    (aCentre, aExtent, bCentre, bExtent) =>
+        UnityEngine.Mathf.Abs(aCentre.x - bCentre.x) < aExtent.x + bExtent.x - 0.05f
+     && UnityEngine.Mathf.Abs(aCentre.y - bCentre.y) < aExtent.y + bExtent.y - 0.05f;
+
+bool rallyZonesApart = true;
+var rallyZoneList = new ArcadeTennis.Court.AimZone[] { ArcadeTennis.Court.AimZone.ShortLeft,
+    ArcadeTennis.Court.AimZone.Deep, ArcadeTennis.Court.AimZone.ShortRight };
+for (int a = 0; a < rallyZoneList.Length; a++)
+for (int b = a + 1; b < rallyZoneList.Length; b++)
+    if (overlaps(ArcadeTennis.Court.AimZones.GroundZoneCentre(court, -1, rallyZoneList[a]),
+                 ArcadeTennis.Court.AimZones.GroundZoneExtents(court, rallyZoneList[a]),
+                 ArcadeTennis.Court.AimZones.GroundZoneCentre(court, -1, rallyZoneList[b]),
+                 ArcadeTennis.Court.AimZones.GroundZoneExtents(court, rallyZoneList[b])))
+        rallyZonesApart = false;
+check("the three zones do not lie on top of one another", rallyZonesApart);
+
 check("arrow up asks for the deep zone",
     ArcadeTennis.Court.AimZones.FromInput(new UnityEngine.Vector2(0f, 1f),
         ArcadeTennis.Court.AimZone.ShortLeft) == ArcadeTennis.Court.AimZone.Deep);

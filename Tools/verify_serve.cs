@@ -165,6 +165,43 @@ check("die kurzen Zonen liegen links und rechts davon",
 check("alle drei liegen im Aufschlagfeld",
     srvLeft.x > boxDeuce.xMin && srvRight.x < boxDeuce.xMax
     && srvDeep.y < court.ServiceLineDistance);
+// Drei Zonen, die uebereinander liegen, sind keine drei Felder -- egal wie
+// ehrlich jede einzelne gezeichnet ist. Genau das war hier der Fall: der tiefe
+// Ring lag quer ueber beiden kurzen, und der Ring-Test lief die ganze Zeit gruen.
+System.Func<UnityEngine.Vector2, UnityEngine.Vector2, UnityEngine.Vector2,
+            UnityEngine.Vector2, bool> overlaps =
+    (aCentre, aExtent, bCentre, bExtent) =>
+        UnityEngine.Mathf.Abs(aCentre.x - bCentre.x) < aExtent.x + bExtent.x - 0.05f
+     && UnityEngine.Mathf.Abs(aCentre.y - bCentre.y) < aExtent.y + bExtent.y - 0.05f;
+
+bool serveZonesApart = true;
+var serveZoneList = new ArcadeTennis.Court.AimZone[] { ArcadeTennis.Court.AimZone.ShortLeft,
+    ArcadeTennis.Court.AimZone.Deep, ArcadeTennis.Court.AimZone.ShortRight };
+foreach (bool dc in new bool[] { true, false })
+for (int a = 0; a < serveZoneList.Length; a++)
+for (int b = a + 1; b < serveZoneList.Length; b++)
+    if (overlaps(ArcadeTennis.Court.AimZones.ServeZoneCentre(court, -1, dc, serveZoneList[a]),
+                 ArcadeTennis.Court.AimZones.ServeZoneExtents(court, serveZoneList[a]),
+                 ArcadeTennis.Court.AimZones.ServeZoneCentre(court, -1, dc, serveZoneList[b]),
+                 ArcadeTennis.Court.AimZones.ServeZoneExtents(court, serveZoneList[b])))
+        serveZonesApart = false;
+check("die drei Aufschlagzonen liegen nicht uebereinander", serveZonesApart);
+
+// Und sie muessen ganz ins Aufschlagfeld passen, sonst zeigt der Marker auf
+// Boden, der ohnehin Fehler waere.
+bool serveZonesInside = true;
+foreach (bool dc in new bool[] { true, false })
+foreach (var z in serveZoneList)
+{
+    var bx = court.GetServiceBox(1, dc);
+    var c2 = ArcadeTennis.Court.AimZones.ServeZoneCentre(court, -1, dc, z);
+    var e2 = ArcadeTennis.Court.AimZones.ServeZoneExtents(court, z);
+    if (c2.x - e2.x < bx.xMin - 0.05f || c2.x + e2.x > bx.xMax + 0.05f) serveZonesInside = false;
+    if (c2.y - e2.y < -0.05f || c2.y + e2.y > court.ServiceLineDistance + 0.05f)
+        serveZonesInside = false;
+}
+check("und liegen ganz im Aufschlagfeld", serveZonesInside);
+
 check("fuer den Gegner ist links wieder links auf dem Bildschirm",
     ArcadeTennis.Court.AimZones.ServeZoneCentre(court, 1, true, ArcadeTennis.Court.AimZone.ShortLeft).x
         > ArcadeTennis.Court.AimZones.ServeZoneCentre(court, 1, true, ArcadeTennis.Court.AimZone.ShortRight).x);

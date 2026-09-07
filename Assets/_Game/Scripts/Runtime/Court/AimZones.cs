@@ -73,35 +73,43 @@ namespace ArcadeTennis.Court
 
         // --- serve -----------------------------------------------------------
 
-        /// <summary>Centre of a serve zone as (x, depth from the net), inside the required box.</summary>
+        /// <summary>
+        /// Centre of a serve zone as (x, depth from the net), inside the box the
+        /// server has to hit.
+        ///
+        /// The box is quartered exactly the way the far half is for a rally: the
+        /// deep zone is its back half, the two short ones the front quarters
+        /// either side of its middle. The first attempt sized them independently
+        /// and they overlapped -- the deep ring lay across both short ones -- so
+        /// the three rings did not read as three fields at all.
+        /// </summary>
         public static Vector2 ServeZoneCentre(CourtDefinition court, int serverSide, bool deuceCourt,
                                               AimZone zone)
         {
             if (court == null) return Vector2.zero;
 
             Rect box = court.GetServiceBox(-Sign(serverSide), deuceCourt);
-            float boxCentre = box.center.x;
-            float boxHalf = box.width * 0.5f;
+            float line = court.ServiceLineDistance;
 
             if (zone == AimZone.Deep)
-                return new Vector2(boxCentre, court.ServiceLineDistance * 0.80f);
+                return new Vector2(box.center.x, line * 0.75f);
 
-            float lateral = boxCentre + boxHalf * 0.5f * (int)zone * Mirror(serverSide);
-            return new Vector2(lateral, court.ServiceLineDistance * 0.45f);
+            float lateral = box.center.x + box.width * 0.25f * (int)zone * Mirror(serverSide);
+            return new Vector2(lateral, line * 0.25f);
         }
 
-        /// <summary>Half width and half depth of a serve zone.</summary>
+        /// <summary>Half width and half depth of a serve zone. Quarters of the box, no overlap.</summary>
         public static Vector2 ServeZoneExtents(CourtDefinition court, AimZone zone)
         {
             if (court == null) return Vector2.one;
 
             Rect box = court.GetServiceBox(1, true);
-            float boxHalf = box.width * 0.5f;
+            float line = court.ServiceLineDistance;
 
             if (zone == AimZone.Deep)
-                return new Vector2(boxHalf * 0.85f, court.ServiceLineDistance * 0.18f);
+                return new Vector2(box.width * 0.48f, line * 0.24f);
 
-            return new Vector2(boxHalf * 0.5f, court.ServiceLineDistance * 0.26f);
+            return new Vector2(box.width * 0.24f, line * 0.22f);
         }
 
         // --- shared ----------------------------------------------------------

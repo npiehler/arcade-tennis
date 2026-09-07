@@ -10,7 +10,7 @@ Stand: M0–M5 abgeschlossen, Steuerung nach den Spieltests umgebaut. Als Nächs
 
 | Eingabe | Wirkung |
 |---|---|
-| **Pfeiltasten** / WASD / linker Stick / D-Pad | Laufen — solange die Leertaste **nicht** gedrückt ist |
+| **Pfeiltasten** / WASD / linker Stick / D-Pad | Laufen, auch zur Aufschlagposition — solange die Leertaste **nicht** gedrückt ist |
 | **Leertaste halten** / A halten | Zielen. Der Marker erscheint. Beim Aufschlag fliegt gleichzeitig der Ball hoch |
 | **+ Pfeil oben** | tiefes Feld (Voreinstellung bei jedem neuen Druck) |
 | **+ Pfeil links / rechts** | kurzes Feld links bzw. rechts |
@@ -25,6 +25,10 @@ dafür, dass die Laufrichtung nicht mehr aus Versehen die Schlagrichtung bestimm
 
 Die Trefferqualität entscheidet, **wie weit** der Ball ins gewählte Feld kommt: sauber
 getroffen bis in die Mitte der Zone, schlecht getroffen bis zu `DepthShortfall` davor.
+
+Die Figur wird **nie** von selbst versetzt. Wo aufgeschlagen wird, läuft der Spieler selbst an.
+Ein Teleport zwischen den Punkten hat die Entscheidung weggenommen und sah aus, als spränge die
+Figur grundlos zurück. Fußfehler sind eine Regel und gehören zu M6.
 
 Der Marker hat **eine** Farbe für beide Schlagarten. Vorher war der Aufschlag gelb und der
 Ballwechsel blau, was nur die Frage aufwarf, was der Unterschied bedeutet — wo der Ring liegt,
@@ -285,8 +289,8 @@ nächsten Rebuild verloren.
 | `verify_court.cs` | 18 Prüfungen: Maße, Aus/Drin, Aufschlagfelder, Netz, generierte Geometrie |
 | `verify_ball.cs` | 13 Prüfungen: Vorhersagegenauigkeit, Solver, Netz, Tunneling, Energieverlust |
 | `verify_character.cs` | 21 Prüfungen: Steuerung, Tempo, Bremsen, Grenzen, Netzlinie, Szenenverdrahtung |
-| `verify_swing.cs` | 57 Prüfungen: Zustandsautomat, Trefferurteil, Ziel und Bogen, Ziel-Deadzone, Flug durch die echte Ballsimulation, Netz/Drin/Aus-Bänder, Szenenverdrahtung |
-| `verify_serve.cs` | 74 Prüfungen: Aufschlaggeometrie, Ballwurf, Zustandsautomat, erster/zweiter Aufschlag, Zielsetzung, Flug, Urteil, Rhythmus, Szenenverdrahtung |
+| `verify_swing.cs` | 58 Prüfungen: Zustandsautomat, Trefferurteil, Ziel und Bogen, Ziel-Deadzone, Flug durch die echte Ballsimulation, Netz/Drin/Aus-Bänder, Szenenverdrahtung |
+| `verify_serve.cs` | 76 Prüfungen: Aufschlaggeometrie, Ballwurf, Zustandsautomat, erster/zweiter Aufschlag, Zielsetzung, Flug, Urteil, Rhythmus, Szenenverdrahtung |
 | `sweep_shots.cs` | **Kein Test, ein Stellwerkzeug.** Fährt die Trefferqualität von 0 bis 1 für beide Schläge und alle drei Zonen und meldet, was der Ball tut, plus die Wurfrhythmus-Tabelle. Nach jeder Änderung an `SwingConfig.asset` oder `ServeConfig.asset` laufen lassen |
 | `pose_shot.cs` | Ball für Screenshots eingefroren mitten in den Flug stellen (`SHOT_INDEX`/`STEPS` werden per `sed` ersetzt) |
 | `pose_net_shot.cs` | Dasselbe für einen Netztreffer |
@@ -303,7 +307,7 @@ for f in verify_court verify_ball verify_character verify_swing verify_serve; do
 done
 ```
 
-**Erwartet: 18 / 13 / 21 / 57 / 74 PASS, 0 FAIL** — zusammen 183. Nach jeder Änderung laufen lassen. Neue Mechanik
+**Erwartet: 18 / 13 / 21 / 58 / 76 PASS, 0 FAIL** — zusammen 186. Nach jeder Änderung laufen lassen. Neue Mechanik
 bekommt eine eigene `verify_*.cs`.
 
 ---
@@ -492,6 +496,13 @@ und rechts. Die Aufteilung folgt der Aufschlaglinie, liegt also auf Markierungen
 ohnehin hat. Im Aufschlagfeld dasselbe im Kleinen. `AimZones` rechnet beides aus der
 `CourtDefinition`, und der Marker zeichnet sich aus denselben Zahlen — er kann nicht anfangen
 zu lügen, wenn jemand die Tiefen verstellt.
+
+**Zonen dürfen sich nicht überlappen.** Die drei Aufschlagzonen taten es: der tiefe Ring lag
+quer über beiden kurzen, in z überschnitten sie sich ebenfalls. Drei Ringe übereinander sind
+keine drei Felder, und der Ring-Test unten lief dabei die ganze Zeit grün — jede Zone war für
+sich ehrlich. Das Aufschlagfeld wird jetzt genauso geviertelt wie die gegnerische Hälfte beim
+Ballwechsel: tiefe Zone = hintere Hälfte, kurze Zonen = die beiden vorderen Viertel. Beide
+Prüfsuiten testen das jetzt paarweise.
 
 **Der Marker muss zeichnen, wo der Ball wirklich landet.** Beim Aufschlag tat er das nicht:
 die kurzen Zonen waren bei schlechtem Kontakt gar nicht erreichbar, der Ball kam am Netz an

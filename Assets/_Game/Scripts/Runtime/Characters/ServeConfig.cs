@@ -57,7 +57,7 @@ namespace ArcadeTennis.Characters
         [Tooltip("How far short of the chosen zone a badly met toss falls. Large enough " +
                  "that the worst contact drops into the net: meeting the ball well is the " +
                  "whole skill of the serve now that there is no charge.")]
-        [SerializeField] float depthShortfall = 1.10f;
+        [SerializeField] float depthShortfall = 0.60f;
 
         [Tooltip("How far outside the box a serve may stray at all.")]
         [SerializeField] float outMargin = 1.60f;
