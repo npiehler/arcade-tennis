@@ -243,9 +243,10 @@ namespace ArcadeTennis.Characters
             float effective = EffectivePower(power, contact, config);
 
             // Spans from the foot of the net to past the opponent's baseline, so the
-        // charge can fail in both directions. A shot that lands in is one the
-        // player judged, not one the solver guaranteed.
-        float depth = Mathf.Lerp(config.MinTargetDepth, court.HalfLength + config.BaselineOvershoot, effective);
+            // charge can fail in both directions. A shot that lands in is one the
+            // player judged, not one the solver guaranteed.
+            float depth = Mathf.Lerp(
+                config.MinTargetDepth, court.HalfLength + config.BaselineOvershoot, effective);
 
             // Aim mirrors exactly the way movement does, so "right" means right
             // on screen for whichever end is being played.
