@@ -242,7 +242,10 @@ namespace ArcadeTennis.Characters
             int s = side >= 0 ? 1 : -1;
             float effective = EffectivePower(power, contact, config);
 
-            float depth = Mathf.Lerp(config.MinTargetDepth, court.HalfLength - config.BaselineMargin, effective);
+            // Spans from the foot of the net to past the opponent's baseline, so the
+        // charge can fail in both directions. A shot that lands in is one the
+        // player judged, not one the solver guaranteed.
+        float depth = Mathf.Lerp(config.MinTargetDepth, court.HalfLength + config.BaselineOvershoot, effective);
 
             // Aim mirrors exactly the way movement does, so "right" means right
             // on screen for whichever end is being played.
@@ -266,9 +269,13 @@ namespace ArcadeTennis.Characters
         }
 
         /// <summary>
-        /// Apex above the contact point. Power flattens the arc, but never below
-        /// what a ball met near the ground needs to clear the net -- otherwise a
-        /// low ball would be given a trajectory that cannot possibly go over.
+        /// Apex above the contact point. A weak shot is barely lifted, which is
+        /// what lets it fall into the net; power buys both speed and height.
+        ///
+        /// The clearance floor that keeps a ball met off the ground playable is
+        /// scaled by power as well. Applying it flat would hand every stab a
+        /// trajectory that clears the net, and the whole low end of the charge
+        /// would stop meaning anything.
         /// </summary>
         public static float ResolveApex(float power, SwingContact contact, Vector3 contactPoint,
                                         SwingConfig config)
@@ -276,9 +283,9 @@ namespace ArcadeTennis.Characters
             if (config == null) return 1.5f;
 
             float effective = EffectivePower(power, contact, config);
-            float apex = Mathf.Lerp(config.ApexSoft, config.ApexHard, effective);
+            float apex = Mathf.Lerp(config.ApexWeak, config.ApexFull, effective);
 
-            return Mathf.Max(apex, config.MinPeakHeight - contactPoint.y);
+            return Mathf.Max(apex, config.MinPeakHeight * effective - contactPoint.y);
         }
     }
 }

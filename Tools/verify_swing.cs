@@ -56,8 +56,7 @@ var overCharged = hold(fullTicks + 60);
 check("charge does not grow past full", overCharged.Charge <= 1f + 1e-5f);
 
 var tapped = hold(1);
-check("a bare tap still carries the minimum charge",
-    UnityEngine.Mathf.Approximately(tapped.Power(cfg), cfg.MinCharge));
+check("a bare tap carries next to no power", tapped.Power(cfg) < 0.05f);
 check("a full hold carries full power", charged.Power(cfg) > 0.999f);
 
 // Runs a whole stroke: hold, release, then idle input until it settles.
@@ -171,18 +170,20 @@ System.Func<int, float, UnityEngine.Vector2, ArcadeTennis.Characters.SwingContac
         ArcadeTennis.Characters.SwingSolver.ResolveTarget(side, power, aim, contact, cfg, court, spread);
 
 var deepShot = aimAt(-1, 1f, UnityEngine.Vector2.zero, perfect, noSpread);
-var shortShot = aimAt(-1, cfg.MinCharge, UnityEngine.Vector2.zero, perfect, noSpread);
+var shortShot = aimAt(-1, 0f, UnityEngine.Vector2.zero, perfect, noSpread);
+var midShot = aimAt(-1, 0.55f, UnityEngine.Vector2.zero, perfect, noSpread);
 check("a full charge aims deeper than a tap", deepShot.z > shortShot.z + 3f);
-check("a full clean shot is aimed inside the court", court.IsInBounds(deepShot));
-check("a tap is aimed past the service line, not into the net",
-    shortShot.z > court.ServiceLineDistance * 0.5f);
+check("a full charge is aimed past the baseline, not safely inside it",
+    deepShot.z > court.HalfLength && !court.IsInBounds(deepShot));
+check("a tap is aimed at the foot of the net", shortShot.z < 1.0f);
+check("a middling charge is aimed inside the court", court.IsInBounds(midShot));
 
 var weakShot = aimAt(-1, 1f, UnityEngine.Vector2.zero, sloppy, noSpread);
 check("poor contact lands shorter than clean contact at the same charge",
     weakShot.z < deepShot.z - 1f);
 
-var rightNear = aimAt(-1, 1f, new UnityEngine.Vector2(1f, 0f), perfect, noSpread);
-var rightFar = aimAt(1, 1f, new UnityEngine.Vector2(1f, 0f), perfect, noSpread);
+var rightNear = aimAt(-1, 0.55f, new UnityEngine.Vector2(1f, 0f), perfect, noSpread);
+var rightFar = aimAt(1, 0.55f, new UnityEngine.Vector2(1f, 0f), perfect, noSpread);
 check("aiming right sends the near player's ball to +x", rightNear.x > 2f);
 check("aiming right is mirrored for the far player", rightFar.x < -2f);
 check("the near player hits into the far half", rightNear.z > 0f);
@@ -211,14 +212,20 @@ for (int i = 0; i < 64; i++)
 check("no amount of spread aims a ball off the premises", clamped);
 
 var high = new UnityEngine.Vector3(0f, 1f, -11f);
-float apexSoft = ArcadeTennis.Characters.SwingSolver.ResolveApex(cfg.MinCharge, perfect, high, cfg);
-float apexHard = ArcadeTennis.Characters.SwingSolver.ResolveApex(1f, perfect, high, cfg);
-check("power flattens the arc", apexHard < apexSoft);
+float apexWeak = ArcadeTennis.Characters.SwingSolver.ResolveApex(0f, perfect, high, cfg);
+float apexFull = ArcadeTennis.Characters.SwingSolver.ResolveApex(1f, perfect, high, cfg);
+check("power lifts the arc; a weak shot is barely raised", apexFull > apexWeak);
 
 var low = new UnityEngine.Vector3(0f, 0.08f, -11f);
-float apexLow = ArcadeTennis.Characters.SwingSolver.ResolveApex(1f, perfect, low, cfg);
-check("a ball met near the ground is still given an arc that can clear the net",
-    apexLow + low.y >= cfg.MinPeakHeight - 1e-4f);
+float apexLowFull = ArcadeTennis.Characters.SwingSolver.ResolveApex(1f, perfect, low, cfg);
+check("a full swing off the ground is still given an arc that can clear the net",
+    apexLowFull + low.y >= cfg.MinPeakHeight - 1e-4f);
+
+// The counterpart: that guarantee is earned by the swing, not handed out. A
+// stab off the ground has to be allowed to fail.
+float apexLowWeak = ArcadeTennis.Characters.SwingSolver.ResolveApex(0f, perfect, low, cfg);
+check("a weak scoop off the ground gets no such guarantee",
+    apexLowWeak + low.y < cfg.MinPeakHeight - 0.1f);
 
 // =========================================================================
 // End to end, through the real ball simulation
@@ -233,9 +240,9 @@ System.Func<UnityEngine.Vector3, UnityEngine.Vector3, float, ArcadeTennis.BallPh
     };
 
 var contactPoint = new UnityEngine.Vector3(0f, charCfg.HitHeight, -11f);
-var driveTarget = aimAt(-1, 1f, UnityEngine.Vector2.zero, perfect, noSpread);
+var driveTarget = aimAt(-1, 0.55f, UnityEngine.Vector2.zero, perfect, noSpread);
 var drive = playOut(contactPoint, driveTarget,
-    ArcadeTennis.Characters.SwingSolver.ResolveApex(1f, perfect, contactPoint, cfg));
+    ArcadeTennis.Characters.SwingSolver.ResolveApex(0.55f, perfect, contactPoint, cfg));
 
 check("a clean drive clears the net", drive.IsBounce);
 check("a clean drive lands in the opponent's court",
@@ -244,17 +251,46 @@ check("it lands where it was aimed",
     drive.HasResult && UnityEngine.Vector3.Distance(
         new UnityEngine.Vector3(drive.Position.x, 0f, drive.Position.z), driveTarget) < 0.25f);
 
-var wideTarget = aimAt(-1, 1f, new UnityEngine.Vector2(1f, 0f), perfect, noSpread);
+var wideTarget = aimAt(-1, 0.55f, new UnityEngine.Vector2(1f, 0f), perfect, noSpread);
 var wideDrive = playOut(contactPoint, wideTarget,
-    ArcadeTennis.Characters.SwingSolver.ResolveApex(1f, perfect, contactPoint, cfg));
+    ArcadeTennis.Characters.SwingSolver.ResolveApex(0.55f, perfect, contactPoint, cfg));
 check("a wide drive also clears the net and lands in",
     wideDrive.IsBounce && court.IsInBounds(wideDrive.Position) && wideDrive.Position.x > 2f);
 
 // The ball met at ankle height is the case the arc floor exists for.
 var lowContact = new UnityEngine.Vector3(0f, 0.10f, -11f);
-var lowDrive = playOut(lowContact, driveTarget,
+var lowDrive = playOut(lowContact, aimAt(-1, 1f, UnityEngine.Vector2.zero, perfect, noSpread),
     ArcadeTennis.Characters.SwingSolver.ResolveApex(1f, perfect, lowContact, cfg));
-check("a ball scooped off the ground still gets over the net", lowDrive.IsBounce);
+check("a ball hit hard off the ground still gets over the net", !lowDrive.IsNetHit);
+
+// ---------------------------------------------------------------------
+// The charge has to be able to lose the point at both ends. This is the
+// check that would have caught the first tuning, where every clean shot
+// landed in however long the button was held.
+var bands = new System.Text.StringBuilder();
+int netBand = 0, inBand = 0, outBand = 0, previousBand = 0;
+bool ordered = true;
+
+for (float power = 0f; power <= 1.0001f; power += 0.05f)
+{
+    var t = aimAt(-1, power, UnityEngine.Vector2.zero, perfect, noSpread);
+    var shot = playOut(contactPoint, t,
+        ArcadeTennis.Characters.SwingSolver.ResolveApex(power, perfect, contactPoint, cfg));
+
+    int band = shot.IsNetHit ? 0
+             : (shot.IsBounce && court.IsInBounds(shot.Position) && shot.Position.z > 0f ? 1 : 2);
+
+    if (band < previousBand) ordered = false;
+    previousBand = band;
+
+    if (band == 0) netBand++; else if (band == 1) inBand++; else outBand++;
+    bands.Append(band == 0 ? "n" : (band == 1 ? "." : "o"));
+}
+
+check("too little charge drops the ball into the net [" + bands + "]", netBand >= 2);
+check("too much charge sends the ball past the baseline", outBand >= 2);
+check("most of the charge range is still playable", inBand >= 10);
+check("the outcomes come in order: net, then in, then out", ordered);
 
 // =========================================================================
 // Scene wiring

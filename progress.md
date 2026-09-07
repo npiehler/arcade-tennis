@@ -218,7 +218,8 @@ nächsten Rebuild verloren.
 | `verify_court.cs` | 18 Prüfungen: Maße, Aus/Drin, Aufschlagfelder, Netz, generierte Geometrie |
 | `verify_ball.cs` | 13 Prüfungen: Vorhersagegenauigkeit, Solver, Netz, Tunneling, Energieverlust |
 | `verify_character.cs` | 21 Prüfungen: Steuerung, Tempo, Bremsen, Grenzen, Netzlinie, Szenenverdrahtung |
-| `verify_swing.cs` | 48 Prüfungen: Zustandsautomat, Trefferurteil, Ziel und Bogen, Flug durch die echte Ballsimulation, Szenenverdrahtung |
+| `verify_swing.cs` | 54 Prüfungen: Zustandsautomat, Trefferurteil, Ziel und Bogen, Flug durch die echte Ballsimulation, Netz/Drin/Aus-Bänder, Szenenverdrahtung |
+| `sweep_charge.cs` | **Kein Test, ein Stellwerkzeug.** Fährt die Aufladung von 0 bis 1 und meldet, was der Ball tut — nach jeder Änderung an `SwingConfig.asset` laufen lassen |
 | `pose_shot.cs` | Ball für Screenshots eingefroren mitten in den Flug stellen (`SHOT_INDEX`/`STEPS` werden per `sed` ersetzt) |
 | `pose_net_shot.cs` | Dasselbe für einen Netztreffer |
 | `pose_swing.cs` + `pose_swing_freeze.cs` | Stellt Ladebalken und Schlag für Screenshots ein. Streckt die Ladezeit, weil ein CLI-Aufruf sonst länger dauert als die ganze Aufladung; `pose_swing_freeze.cs` gibt sie zurück |
@@ -234,7 +235,7 @@ for f in verify_court verify_ball verify_character verify_swing; do
 done
 ```
 
-**Erwartet: 18 / 13 / 21 / 48 PASS, 0 FAIL.** Nach jeder Änderung laufen lassen. Neue Mechanik
+**Erwartet: 18 / 13 / 21 / 54 PASS, 0 FAIL.** Nach jeder Änderung laufen lassen. Neue Mechanik
 bekommt eine eigene `verify_*.cs`.
 
 ---
@@ -313,13 +314,30 @@ Beide Hälften werden **multipliziert**, nicht gemittelt: perfektes Timing soll 
 
 Weiter:
 
-- **Aufladung → Tiefe, Aim → Breite, Qualität → Streuung *und* Kraft.** Schlechter Kontakt
-  landet dadurch kurz statt nur woanders — das ist die Rückmeldung, die man ohne HUD spürt
-- **Ein sauberer Schlag landet drin.** Volle Aufladung zielt 0,70 m vor die gegnerische
-  Grundlinie; ins Aus geht es über schlechten Kontakt oder weites Zielen, nicht übers
-  Festhalten der Taste
-- **Bogenhöhe hat einen Boden.** Ein Ball, der knapp über dem Boden getroffen wird, bekäme
-  sonst eine Flugbahn, die das Netz gar nicht überwinden kann (`MinPeakHeight`)
+- **Aufladung → Tiefe, Aim → Breite, Qualität → Streuung.** Die Aufladung spannt vom Netzfuß
+  (0,60 m dahinter) bis 1,70 m **hinter** die gegnerische Grundlinie, also über beide Fehler
+  hinaus. Zu kurz gedrückt fällt der Ball ins Netz, zu lang gedrückt geht er ins Aus
+- **Ein schwacher Schlag wird kaum angehoben** (`ApexWeak` 0,50 gegen `ApexFull` 1,45). Ohne
+  das rettet der hohe Bogen selbst den schwächsten Ball über das Netz, und die untere Hälfte
+  der Aufladung bedeutet nichts mehr
+- **Der Bogen-Boden skaliert mit der Kraft.** `MinPeakHeight` sorgt dafür, dass ein knapp über
+  dem Boden getroffener Ball mit vollem Schwung noch übers Netz kommt — aber eben nur mit
+  vollem Schwung. Als feste Untergrenze hätte er jedem Stochern dieselbe Garantie geschenkt
+- **Qualität kostet nur wenig Tiefe** (`MinQualityPower` 0,80). Höher angesetzt als anfangs,
+  damit die Haltezeit die Tiefe bestimmt und nicht der Zufall des Kontakts — sonst ist die
+  Aufladung nicht erlernbar. Die Strafe für schlechten Kontakt liegt in der **Streuung**
+Gemessen mit `Tools/sweep_charge.cs`, sauberer Kontakt, Haltezeit bei `ChargeTime` = 0,6 s:
+
+| Treffpunkt | Netz | Drin | Aus |
+|---|---|---|---|
+| Am Netz (z = −6) | bis 0,06 s | 0,06–0,51 s | ab 0,54 s |
+| Grundlinie (z = −11) | bis 0,12 s | 0,12–0,51 s | ab 0,54 s |
+| Hinter der Linie (z = −13,5) | bis 0,15 s | 0,15–0,51 s | ab 0,54 s |
+
+Wer weiter hinten steht, hat mehr Netzrisiko — die Position bekommt dadurch Bedeutung. Rund
+zwei Drittel der Aufladung sind sicher; das Halten der Taste über 0,54 s hinaus geht **immer**
+ins Aus, weil die Aufladung bei 1,0 deckelt.
+
 - **Der Zielmarker bleibt gültig**, weil der Rückschlag über `Ball.LaunchAt` läuft und damit
   über dieselbe Simulation
 - **Beide Figuren bekommen den `SwingController`**, nicht nur der Spieler — die KI in M7 fährt
