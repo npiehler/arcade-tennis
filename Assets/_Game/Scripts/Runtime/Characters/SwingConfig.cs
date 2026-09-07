@@ -128,6 +128,15 @@ namespace ArcadeTennis.Characters
         public float MinSpread => minSpread;
         public float MinQualityPower => minQualityPower;
 
+        /// <summary>
+        /// The contact numbers as the solver wants them. The reach comes from the
+        /// body rather than from here, because how far a player can stretch is a
+        /// property of the player, not of the stroke.
+        /// </summary>
+        public ContactTuning Contact(float reachRadius) =>
+            new ContactTuning(sweetSpotRadius, reachRadius,
+                perfectWindow, timingWindow, perfectThreshold, goodThreshold);
+
         public float ApexWeak => apexWeak;
         public float ApexFull => apexFull;
         public float MinPeakHeight => minPeakHeight;

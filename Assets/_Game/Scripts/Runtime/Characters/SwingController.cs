@@ -21,6 +21,7 @@ namespace ArcadeTennis.Characters
         SwingState swing;
         Vector2 aim;
         bool holding;
+        bool suspended;
 
         /// <summary>Fired when the racket starts moving, before contact. The animator hangs off this in part 2.</summary>
         public event Action SwingStarted;
@@ -33,6 +34,29 @@ namespace ArcadeTennis.Characters
         public float Charge => swing.Charge;
         public float Power => swing.Power(config);
         public bool IsCharging => swing.Phase == SwingPhase.Charging;
+
+        /// <summary>
+        /// Set while the serve owns the ball. Without it the rally stroke would
+        /// happily swing at a ball that is still going up off the server's own
+        /// toss, which is nobody's idea of tennis.
+        /// </summary>
+        public bool Suspended
+        {
+            get => suspended;
+            set
+            {
+                if (suspended == value) return;
+                suspended = value;
+
+                // Come back idle rather than mid-stroke, so releasing the serve
+                // never hands the rally a half-finished swing.
+                if (suspended)
+                {
+                    swing = default;
+                    holding = false;
+                }
+            }
+        }
 
         /// <summary>The last stroke's result, kept for the feedback layer.</summary>
         public SwingContact LastContact { get; private set; }
@@ -50,7 +74,7 @@ namespace ArcadeTennis.Characters
 
         void FixedUpdate()
         {
-            if (config == null) return;
+            if (config == null || suspended) return;
 
             SwingPhase before = swing.Phase;
             SwingSolver.Tick(ref swing, holding, config, Time.fixedDeltaTime, out bool contactDue);
@@ -71,7 +95,7 @@ namespace ArcadeTennis.Characters
                 contact = SwingSolver.Evaluate(
                     ball.State.Position, ball.Velocity,
                     character.HitCentre, character.Velocity,
-                    character.ReachRadius, config);
+                    config.Contact(character.ReachRadius));
             }
 
             LastContact = contact;

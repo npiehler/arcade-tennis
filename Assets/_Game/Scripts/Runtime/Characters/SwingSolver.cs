@@ -48,6 +48,38 @@ namespace ArcadeTennis.Characters
         public bool CanStartStroke => Phase == SwingPhase.Idle;
     }
 
+    /// <summary>
+    /// The handful of numbers <see cref="SwingSolver.Evaluate"/> needs, lifted
+    /// out of whichever config owns them.
+    ///
+    /// A serve and a groundstroke are judged by the same arithmetic but never by
+    /// the same numbers: a serve is met above the head, off a ball that is barely
+    /// moving at the top of the toss, and wants a far tighter sweet spot. Passing
+    /// the numbers instead of the config is what lets both strokes share the one
+    /// piece of judgement rather than growing a second copy of it.
+    /// </summary>
+    public readonly struct ContactTuning
+    {
+        public readonly float SweetSpotRadius;
+        public readonly float ReachRadius;
+        public readonly float PerfectWindow;
+        public readonly float TimingWindow;
+        public readonly float PerfectThreshold;
+        public readonly float GoodThreshold;
+
+        public ContactTuning(float sweetSpotRadius, float reachRadius,
+                             float perfectWindow, float timingWindow,
+                             float perfectThreshold, float goodThreshold)
+        {
+            SweetSpotRadius = sweetSpotRadius;
+            ReachRadius = reachRadius;
+            PerfectWindow = perfectWindow;
+            TimingWindow = timingWindow;
+            PerfectThreshold = perfectThreshold;
+            GoodThreshold = goodThreshold;
+        }
+    }
+
     /// <summary>What the racket made of the ball.</summary>
     public struct SwingContact
     {
@@ -165,35 +197,41 @@ namespace ArcadeTennis.Characters
         /// </summary>
         public static SwingContact Evaluate(Vector3 ballPosition, Vector3 ballVelocity,
                                             Vector3 hitCentre, Vector3 hitCentreVelocity,
-                                            float reachRadius, SwingConfig config)
+                                            ContactTuning tuning)
         {
             var contact = new SwingContact { Point = ballPosition };
-            if (config == null) return contact;
 
             Vector3 r = ballPosition - hitCentre;
             Vector3 v = ballVelocity - hitCentreVelocity;
 
-            float closingSpeedSqr = v.sqrMagnitude;
+            // How far the ball travels relative to the racket over a whole swing
+            // window. When that is shorter than the sweet spot itself, there is
+            // no meaningful "too early" or "too late" left to measure -- the ball
+            // is hanging, and only placement can decide.
+            //
+            // This is not a nicety. At the top of a serve toss the relative speed
+            // approaches zero, and -(r.v)/(v.v) divides a small number by a
+            // smaller one: a ball sitting comfortably on the racket comes out as
+            // tens of seconds early and grades as a miss. Below the threshold the
+            // closed form is not just imprecise, it is meaningless.
+            float travelPerWindow = v.magnitude * tuning.TimingWindow;
+            bool timingDecides = travelPerWindow > tuning.SweetSpotRadius;
 
-            // A ball that is barely moving relative to the racket has no
-            // meaningful moment of closest approach; judge it purely on where
-            // it is. This keeps a stationary ball hittable instead of dividing
-            // by nothing.
-            float timeToClosest = closingSpeedSqr > 0.0001f ? -Vector3.Dot(r, v) / closingSpeedSqr : 0f;
+            float timeToClosest = timingDecides ? -Vector3.Dot(r, v) / v.sqrMagnitude : 0f;
 
             contact.MissDistance = (r + v * timeToClosest).magnitude;
             contact.TimingOffset = -timeToClosest;
 
             contact.SpatialScore = 1f - Mathf.InverseLerp(
-                config.SweetSpotRadius, Mathf.Max(reachRadius, config.SweetSpotRadius + 0.01f),
+                tuning.SweetSpotRadius, Mathf.Max(tuning.ReachRadius, tuning.SweetSpotRadius + 0.01f),
                 contact.MissDistance);
 
             contact.TimingScore = 1f - Mathf.InverseLerp(
-                config.PerfectWindow, Mathf.Max(config.TimingWindow, config.PerfectWindow + 0.001f),
+                tuning.PerfectWindow, Mathf.Max(tuning.TimingWindow, tuning.PerfectWindow + 0.001f),
                 Mathf.Abs(contact.TimingOffset));
 
-            bool inReach = contact.MissDistance <= reachRadius;
-            bool inTime = Mathf.Abs(contact.TimingOffset) <= config.TimingWindow;
+            bool inReach = contact.MissDistance <= tuning.ReachRadius;
+            bool inTime = Mathf.Abs(contact.TimingOffset) <= tuning.TimingWindow;
             contact.Made = inReach && inTime;
 
             if (!contact.Made)
@@ -208,8 +246,8 @@ namespace ArcadeTennis.Characters
             // at arm's length.
             contact.Quality = Mathf.Clamp01(contact.SpatialScore * contact.TimingScore);
 
-            if (contact.Quality >= config.PerfectThreshold) contact.Grade = SwingGrade.Perfect;
-            else if (contact.Quality >= config.GoodThreshold) contact.Grade = SwingGrade.Good;
+            if (contact.Quality >= tuning.PerfectThreshold) contact.Grade = SwingGrade.Perfect;
+            else if (contact.Quality >= tuning.GoodThreshold) contact.Grade = SwingGrade.Good;
             else contact.Grade = contact.TimingOffset < 0f ? SwingGrade.Early : SwingGrade.Late;
 
             return contact;

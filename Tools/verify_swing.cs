@@ -106,9 +106,11 @@ check("holding at full charge waits instead of firing",
 var hitCentre = new UnityEngine.Vector3(0f, charCfg.HitHeight, -11f);
 var incoming = new UnityEngine.Vector3(0f, 0f, -20f);   // ball running at the near player
 
+var tuning = cfg.Contact(reach);
+
 System.Func<UnityEngine.Vector3, ArcadeTennis.Characters.SwingContact> meet = (offset) =>
     ArcadeTennis.Characters.SwingSolver.Evaluate(
-        hitCentre + offset, incoming, hitCentre, UnityEngine.Vector3.zero, reach, cfg);
+        hitCentre + offset, incoming, hitCentre, UnityEngine.Vector3.zero, tuning);
 
 var dead = meet(new UnityEngine.Vector3(0f, 0f, 1.0f));
 check("a ball on line and on time grades Perfect",
@@ -145,14 +147,14 @@ check("quality falls as the ball passes further from the sweet spot", monotonic)
 
 var still = ArcadeTennis.Characters.SwingSolver.Evaluate(
     hitCentre + new UnityEngine.Vector3(0.3f, 0f, 0f), UnityEngine.Vector3.zero,
-    hitCentre, UnityEngine.Vector3.zero, reach, cfg);
+    hitCentre, UnityEngine.Vector3.zero, tuning);
 check("a motionless ball inside the reach can still be struck", still.Made);
 
 // The racket moving with the ball is what a running player does; judging
 // against the relative path is the whole point of the closed form.
 var chasing = ArcadeTennis.Characters.SwingSolver.Evaluate(
     hitCentre + new UnityEngine.Vector3(0f, 0f, 3.6f), incoming,
-    hitCentre, new UnityEngine.Vector3(0f, 0f, 6f), reach, cfg);
+    hitCentre, new UnityEngine.Vector3(0f, 0f, 6f), tuning);
 var planted = meet(new UnityEngine.Vector3(0f, 0f, 3.6f));
 check("running towards the ball buys timing a standing player does not have",
     chasing.Made && !planted.Made);
@@ -362,8 +364,17 @@ if (indicatorWired)
 }
 check("the charge bar exists and is wired to the player", indicatorWired);
 
-var feeder = UnityEngine.Object.FindFirstObjectByType<ArcadeTennis.DebugTools.BallFeeder>();
-check("a feeder puts balls into play until the serve exists", feeder != null);
+// The rally stroke has to stand down while the serve owns the ball, or it
+// would swing at a ball still going up off its own side's toss.
+var playerSwing = UnityEngine.Object.FindFirstObjectByType<ArcadeTennis.Characters.SwingController>();
+bool standsDown = false;
+if (playerSwing != null)
+{
+    playerSwing.Suspended = true;
+    standsDown = playerSwing.Phase == ArcadeTennis.Characters.SwingPhase.Idle;
+    playerSwing.Suspended = false;
+}
+check("the rally stroke can be held back for the serve", standsDown);
 
 var input = UnityEngine.Object.FindFirstObjectByType<ArcadeTennis.Characters.PlayerInputController>();
 bool swingBound = false;

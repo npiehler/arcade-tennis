@@ -25,6 +25,7 @@ namespace ArcadeTennis.BallPhysics
 
         MaterialPropertyBlock properties;
         Renderer markerRenderer;
+        bool suppressed;
 
         void Awake()
         {
@@ -52,9 +53,26 @@ namespace ArcadeTennis.BallPhysics
             else Refresh();
         }
 
+        /// <summary>
+        /// Hides the marker without unwiring it. The serve sets this while the
+        /// ball is going up off the toss, where a landing spot at the server's
+        /// own feet is noise rather than information.
+        /// </summary>
+        public bool Suppressed
+        {
+            get => suppressed;
+            set
+            {
+                if (suppressed == value) return;
+                suppressed = value;
+                if (suppressed) Show(false);
+                else Refresh();
+            }
+        }
+
         public void Refresh()
         {
-            if (ball == null || marker == null) return;
+            if (ball == null || marker == null || suppressed) return;
 
             BallPrediction prediction = ball.PredictLanding();
             if (!prediction.HasResult)

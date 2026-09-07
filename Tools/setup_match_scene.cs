@@ -54,6 +54,8 @@ var characterConfig = UnityEditor.AssetDatabase.LoadAssetAtPath<ArcadeTennis.Cha
     "Assets/_Game/Settings/CharacterConfig.asset");
 var swingConfig = UnityEditor.AssetDatabase.LoadAssetAtPath<ArcadeTennis.Characters.SwingConfig>(
     "Assets/_Game/Settings/SwingConfig.asset");
+var serveConfig = UnityEditor.AssetDatabase.LoadAssetAtPath<ArcadeTennis.Characters.ServeConfig>(
+    "Assets/_Game/Settings/ServeConfig.asset");
 var controlsAsset = UnityEditor.AssetDatabase.LoadAssetAtPath<UnityEngine.InputSystem.InputActionAsset>(
     "Assets/_Game/Scripts/Runtime/Input/TennisControls.inputactions");
 
@@ -108,6 +110,14 @@ System.Func<string, int, string, UnityEngine.Vector3, ArcadeTennis.Characters.Te
         var swingSo = new UnityEditor.SerializedObject(swingComp);
         swingSo.FindProperty("config").objectReferenceValue = swingConfig;
         swingSo.ApplyModifiedPropertiesWithoutUndo();
+
+        // Same reasoning for the serve: milestone 7's AI serves through this very
+        // component, so the opponent gets one too.
+        var serveComp = root.AddComponent<ArcadeTennis.Characters.ServeController>();
+        var serveSo = new UnityEditor.SerializedObject(serveComp);
+        serveSo.FindProperty("config").objectReferenceValue = serveConfig;
+        serveSo.FindProperty("rallySwing").objectReferenceValue = swingComp;
+        serveSo.ApplyModifiedPropertiesWithoutUndo();
 
         visualRoot.rotation = UnityEngine.Quaternion.LookRotation(
             new UnityEngine.Vector3(0f, 0f, -charSide), UnityEngine.Vector3.up);
@@ -205,6 +215,12 @@ foreach (var swinger in new ArcadeTennis.Characters.TennisCharacter[] { player, 
     var scSo = new UnityEditor.SerializedObject(sc);
     scSo.FindProperty("ball").objectReferenceValue = ball;
     scSo.ApplyModifiedPropertiesWithoutUndo();
+
+    var srv = swinger.GetComponent<ArcadeTennis.Characters.ServeController>();
+    var srvSo = new UnityEditor.SerializedObject(srv);
+    srvSo.FindProperty("ball").objectReferenceValue = ball;
+    srvSo.FindProperty("landingMarker").objectReferenceValue = markerComp;
+    srvSo.ApplyModifiedPropertiesWithoutUndo();
 }
 
 // --- Charge bar ---------------------------------------------------------
@@ -225,19 +241,22 @@ var indicator = barRoot.AddComponent<ArcadeTennis.Presentation.SwingIndicator>()
 var indicatorSo = new UnityEditor.SerializedObject(indicator);
 indicatorSo.FindProperty("swing").objectReferenceValue =
     player.GetComponent<ArcadeTennis.Characters.SwingController>();
+indicatorSo.FindProperty("serve").objectReferenceValue =
+    player.GetComponent<ArcadeTennis.Characters.ServeController>();
 indicatorSo.FindProperty("character").objectReferenceValue = player.transform;
 indicatorSo.FindProperty("fill").objectReferenceValue = barFill.transform;
 indicatorSo.FindProperty("background").objectReferenceValue = barBack.transform;
 indicatorSo.ApplyModifiedPropertiesWithoutUndo();
 
-// --- Ball feeder (milestone 4 practice rig) -----------------------------
-// Replaced by the serve in milestone 5.
-var feeder = systemsGo.AddComponent<ArcadeTennis.DebugTools.BallFeeder>();
-var feederSo = new UnityEditor.SerializedObject(feeder);
-feederSo.FindProperty("ball").objectReferenceValue = ball;
-feederSo.FindProperty("court").objectReferenceValue = courtDef;
-feederSo.FindProperty("receiver").objectReferenceValue = player;
-feederSo.ApplyModifiedPropertiesWithoutUndo();
+// --- Serve practice driver (milestone 5 rig) ---------------------------
+// Decides only when the next serve happens. The rule engine in milestone 6
+// takes that over and this goes.
+var driver = systemsGo.AddComponent<ArcadeTennis.DebugTools.ServePracticeDriver>();
+var driverSo = new UnityEditor.SerializedObject(driver);
+driverSo.FindProperty("serve").objectReferenceValue =
+    player.GetComponent<ArcadeTennis.Characters.ServeController>();
+driverSo.FindProperty("ball").objectReferenceValue = ball;
+driverSo.ApplyModifiedPropertiesWithoutUndo();
 
 UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
 UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene);

@@ -3,7 +3,7 @@
 Übergabedokument für spätere Claude-Sessions. Der Spielentwurf steht in [plan.md](plan.md);
 hier steht, **was fertig ist** und **wie man an diesem Projekt arbeitet**.
 
-Stand: M0–M4 abgeschlossen. Als Nächstes **M5 (Aufschlag)**.
+Stand: M0–M5 abgeschlossen. Als Nächstes **M6 (Regelwerk)**.
 
 ---
 
@@ -81,6 +81,16 @@ sammeln sich Screenshots im Projekt.
 Fehlermeldung den korrekten Namen; alternativ:
 `unity cmd --query <befehl> --detail full --json` zeigt das komplette Schema.
 
+**Ein extern geändertes `.asset` lädt `refresh_assets` nicht neu.** Das ScriptableObject
+bleibt mit den alten Werten im Speicher, und man misst minutenlang gegen eine Einstellung, die
+gar nicht mehr auf der Platte steht. Nach jedem Editieren einer `.asset`-Datei von außen:
+
+```bash
+unity cmd eval --code 'UnityEditor.AssetDatabase.ImportAsset("Assets/_Game/Settings/SwingConfig.asset",
+  UnityEditor.ImportAssetOptions.ForceUpdate | UnityEditor.ImportAssetOptions.ForceSynchronousImport);
+  return "ok";' --json
+```
+
 **`import_asset` ist für *externe* Dateien** (kopiert von außerhalb ins Projekt). Um eine
 extern geschriebene Datei im Projekt neu einzulesen:
 
@@ -113,11 +123,14 @@ found". Das ist normal — in einer Schleife auf `unity status` warten, nicht ab
    `open -a "/Applications/Unity/Hub/Editor/6000.5.5f1/Unity.app"`.
    Prüfen über `UnityEngine.Time.frameCount` — steigt der nicht, tickt nichts.
 
-2. **`Time.timeScale` überlebt den Play-Mode-Wechsel.** Wer in einem Skript `timeScale = 0`
-   setzt (etwa für ein eingefrorenes Einzelbild), findet das in der nächsten Session wieder vor
-   und wundert sich, warum sich nichts bewegt. Am Anfang jedes Play-Mode-Tests
-   `UnityEngine.Time.timeScale = 1f;` setzen. Symptom: `Time.frameCount` steigt, `Time.time`
-   bleibt bei 0.
+2. **`Time.timeScale` überlebt nicht nur den Play-Mode-Wechsel, sondern die ganze Session** —
+   der Wert steht in `ProjectSettings/TimeManager.asset` als `m_TimeScale` und wird mit
+   committet. In diesem Projekt stand dort monatelang `0`, der Rest eines M2-Screenshot-Skripts;
+   das war die eigentliche Ursache dafür, dass der Edit-Mode-Wert immer wieder auf 0 stand.
+   Play Mode und Edit Mode haben getrennte Laufzeitwerte, aber beide gehen auf dieselbe Datei
+   zurück. Am Anfang jedes Play-Mode-Tests `UnityEngine.Time.timeScale = 1f;` setzen, am Ende
+   ebenso — und wenn `git status` `TimeManager.asset` zeigt, hineinschauen. Symptom eines
+   vergessenen Werts: `Time.frameCount` steigt, `Time.time` bleibt bei 0.
 
 3. **Auf `playMode == "playing"` warten, nicht auf `ready`.** `ready` heißt Edit Mode. Wer zu
    früh loslegt, führt Skripte im Edit Mode aus, wo keine `Awake`/`OnEnable`/`FixedUpdate`
@@ -175,27 +188,31 @@ aufnehmen. `Tools/pose_shot.cs` macht genau das für den Ball. Danach `timeScale
 | `Characters/CharacterMotion.cs` | **Reine Bewegungsfunktion.** `ToWorldIntent` (Seitenspiegelung), `Step` |
 | `Characters/TennisCharacter.cs` | Körper für Spieler *und* KI. `SetMoveIntent`, `Teleport`, `HitCentre`, `ReachRadius`, `Side` |
 | `Characters/SwingConfig.cs` | ScriptableObject: Aufladen, Trefferfenster, Sweet Spot, Zielweite, Streuung, Bogenhöhe |
-| `Characters/SwingSolver.cs` | **Kern der Schlagmechanik.** `Tick` (Zustandsautomat), `Evaluate` (Trefferurteil), `ResolveTarget`, `ResolveApex` — alles rein |
+| `Characters/SwingSolver.cs` | **Kern der Schlagmechanik.** `Tick` (Zustandsautomat), `Evaluate` (Trefferurteil), `ResolveTarget`, `ResolveApex` — alles rein. `ContactTuning` trägt die Zahlen, die `Evaluate` braucht, damit Grundschlag *und* Aufschlag dieselbe Beurteilung nutzen |
+| `Characters/ServeConfig.cs` | ScriptableObject: Ballwurf, Treffhöhe, Timing, Zielsetzung im Aufschlagfeld, Bogen |
+| `Characters/ServeSolver.cs` | **Kern des Aufschlags.** `Tick`, `TossOrigin`/`HitCentre`/`TossVelocity`, `ResolveTarget`, `Judge`, `RegisterFault`, `NextPoint` — alles rein |
+| `Characters/ServeController.cs` | Aufschlag als Fähigkeit des Körpers. Besitzt den Ball vom Wurf bis zum Urteil und hält solange den Grundschlag zurück |
 | `Characters/SwingController.cs` | Schlag als Fähigkeit des Körpers. `SetSwingHeld`, `SetAim`, Events `SwingStarted`/`Contacted`, `LastContact` |
 | `Characters/PlayerInputController.cs` | Liest `Move` und `Swing` aus dem Action Map und füttert Körper und Schlag |
 | `Presentation/MatchCamera.cs` | Kamera hinter der Grundlinie, **feste Rotation**, seitliche Parallelfahrt |
 | `Presentation/ReachIndicator.cs` | Reichweitenring, Mesh zur Laufzeit erzeugt (`HideAndDontSave`) |
 | `Presentation/SwingIndicator.cs` | Ladebalken über der Figur, blitzt nach dem Schlag in der Farbe der Trefferqualität |
 | `Utility/RingMesh.cs` | Ringmesh-Generator |
-| `Debug/BallFeeder.cs` | **Gerüst für M4, in M5 löschen.** Spielt Bälle an, damit der Schlag ohne Aufschlag geübt werden kann |
+| `Debug/ServePracticeDriver.cs` | **Gerüst für M5, in M6 löschen.** Entscheidet nur, *wann* der nächste Aufschlag kommt — wer den Punkt gewinnt, ist Sache des Regelwerks |
 | `Input/TennisControls.inputactions` | Actions `Move`, `Swing`, `Pause`; Tastatur + Gamepad |
 
 ### Assets
 
 - Szene: `Assets/_Game/Scenes/Match.unity` (Build-Index 1)
 - Settings: `CourtDefinition.asset`, `BallPhysicsConfig.asset`, `CharacterConfig.asset`,
-  `SwingConfig.asset`
+  `SwingConfig.asset`, `ServeConfig.asset`
 - 15 Materialien unter `Assets/_Game/Materials/`
 
 ### Szenenaufbau (`Match.unity`, 8 Roots)
 
 `Sun` · `Court` (+`_Generated`, 75 Teile) · `Match Camera` · `Ball` · `Ball Systems`
-(Marker + Feeder) · `Player` (+`Visual`, +`Swing Bar`) · `Opponent` (+`Visual`) · `Reach Ring`
+(Marker + Übungstreiber) · `Player` (+`Visual`, +`Swing Bar`) · `Opponent` (+`Visual`) ·
+`Reach Ring`
 
 Der Ladebalken hängt bewusst **nicht** unter `Visual`: in Teil 2 wird `Visual` gegen das
 Blender-Modell getauscht, das Feedback soll das überleben.
@@ -219,23 +236,25 @@ nächsten Rebuild verloren.
 | `verify_ball.cs` | 13 Prüfungen: Vorhersagegenauigkeit, Solver, Netz, Tunneling, Energieverlust |
 | `verify_character.cs` | 21 Prüfungen: Steuerung, Tempo, Bremsen, Grenzen, Netzlinie, Szenenverdrahtung |
 | `verify_swing.cs` | 60 Prüfungen: Zustandsautomat, Trefferurteil, Ziel und Bogen, Ziel-Deadzone, Flug durch die echte Ballsimulation, Netz/Drin/Aus-Bänder, Szenenverdrahtung |
+| `verify_serve.cs` | 68 Prüfungen: Aufschlaggeometrie, Ballwurf, Zustandsautomat, erster/zweiter Aufschlag, Zielsetzung, Flug, Urteil, Rhythmus, Szenenverdrahtung |
 | `sweep_charge.cs` | **Kein Test, ein Stellwerkzeug.** Fährt die Aufladung von 0 bis 1 und meldet, was der Ball tut — nach jeder Änderung an `SwingConfig.asset` laufen lassen |
+| `sweep_serve.cs` | Dasselbe für den Aufschlag, plus die **Wurfrhythmus-Tabelle**: wann losgelassen wird, wo der Ball dann ist, was dabei herauskommt |
 | `pose_shot.cs` | Ball für Screenshots eingefroren mitten in den Flug stellen (`SHOT_INDEX`/`STEPS` werden per `sed` ersetzt) |
 | `pose_net_shot.cs` | Dasselbe für einen Netztreffer |
 | `pose_swing.cs` + `pose_swing_freeze.cs` | Stellt Ladebalken und Schlag für Screenshots ein. Streckt die Ladezeit, weil ein CLI-Aufruf sonst länger dauert als die ganze Aufladung; `pose_swing_freeze.cs` gibt sie zurück |
 
-Alle vier Prüfsuiten laufen **ohne Play Mode** und ohne Timing-Abhängigkeit, weil Ball- und
+Alle fünf Prüfsuiten laufen **ohne Play Mode** und ohne Timing-Abhängigkeit, weil Ball- und
 Figurenbewegung reine Funktionen sind.
 
 ```bash
 export PATH="$HOME/.unity/bin:$PATH"
 cd "/Users/nicopiehler/Arcade Tennis"
-for f in verify_court verify_ball verify_character verify_swing; do
+for f in verify_court verify_ball verify_character verify_swing verify_serve; do
   unity cmd eval_file --file "Tools/$f.cs" --timeout 120000 --json
 done
 ```
 
-**Erwartet: 18 / 13 / 21 / 60 PASS, 0 FAIL.** Nach jeder Änderung laufen lassen. Neue Mechanik
+**Erwartet: 18 / 13 / 21 / 60 / 68 PASS, 0 FAIL** — zusammen 180. Nach jeder Änderung laufen lassen. Neue Mechanik
 bekommt eine eigene `verify_*.cs`.
 
 ---
@@ -359,27 +378,71 @@ ins Aus, weil die Aufladung bei 1,0 deckelt.
 Ein Fund am Rande: `Time.timeScale` stand im Edit Mode noch auf 0 — der Rest eines
 M2-Screenshot-Skripts, der einen Session-Wechsel überlebt hat. Zurückgesetzt.
 
+### M5 — Aufschlag ✅
+
+**Ein Tastendruck, kein zweiter.** Drücken wirft den Ball und startet gleichzeitig die
+Aufladung, Loslassen schwingt, 0,16 s später trifft der Schläger. Wurf und Aufladung sind
+damit **eine** Entscheidung, und genau das musste zusammen eingestellt werden.
+
+Der Rhythmus, gemessen mit `Tools/sweep_serve.cs`:
+
+| Loslassen nach | Was passiert |
+|---|---|
+| bis 0,15 s | gut getroffen, aber ohne Kraft → **ins Netz** |
+| 0,20–0,65 s | **im Aufschlagfeld** |
+| 0,70–0,80 s | zu tief gezielt → **hinter die Aufschlaglinie** |
+| ab 0,85 s | Ball schon unter der Reichweite → **Schlag ins Leere**, auch das ein Fehler |
+
+Der tiefste noch gültige Aufschlag liegt bei 0,65 s mit perfektem Kontakt — 0,05 s vom Fehler
+entfernt. Das ist Absicht.
+
+Weiter:
+
+- **Einen Wurf fallen zu lassen kostet nichts.** Wer nicht schlägt, fängt den Ball und wirft
+  neu, wie im echten Tennis. Nur der Schlag ins Leere ist ein Fehler
+- **Erster und zweiter Aufschlag** laufen über dieselbe Mechanik. Der zweite wird *nicht*
+  automatisch entschärft — kürzer aufzuladen ist die Entscheidung des Spielers, so wie überall
+  sonst in diesem Spiel auch
+- **Netzroller sind Fehler, kein Let.** Steht so im Plan und spart dem ganzen Spiel einen
+  Sonderfall
+- **Der Aufschlag besitzt den Ball** vom Wurf bis zum Urteil und setzt solange
+  `SwingController.Suspended`. Ohne das schlägt der Grundschlag nach dem eigenen Ballwurf
+- **Beurteilt wird das echte Ereignis**, nicht eine zweite Vorhersage: der `ServeController`
+  hört auf `Ball.Bounced` und `Ball.HitNet` und fragt `CourtDefinition.IsInServiceBox`
+
+**Zwei Funde beim Bauen:**
+
+`SwingSolver.Evaluate` bekam eine `ContactTuning` statt einer `SwingConfig`. Aufschlag und
+Grundschlag werden mit derselben Arithmetik beurteilt, aber niemals mit denselben Zahlen — der
+Aufschlag will einen viel engeren Sweet Spot. Die Zahlen zu übergeben statt der Konfiguration
+ist das, was eine zweite Kopie des Trefferurteils verhindert.
+
+**Am Scheitel des Wurfs steht der Ball fast still, und dort zerfällt `t* = -(r·v)/(v·v)`** — eine
+kleine Zahl geteilt durch eine noch kleinere. Ein bequem erreichbarer Ball kam als „zehn
+Sekunden zu früh" heraus und wäre als Fehlschlag durchgefallen. `Evaluate` prüft jetzt, ob der
+Ball während eines ganzen Schwungfensters überhaupt weiter reist als der Sweet Spot breit ist;
+wenn nicht, gibt es kein „zu früh" mehr zu messen und es entscheidet allein die Platzierung.
+
 ---
 
-## 5. Nächster Schritt — M5 (Aufschlag)
+## 5. Nächster Schritt — M6 (Regelwerk)
 
-Vorher lohnt ein **längerer Spieltest mit der Hand am Controller**. Die Zahlen aus M4 sind in
-`SwingConfig.asset` gesammelt und ohne Codeänderung verstellbar; die interessanten sind
-`ChargeTime`, `ContactDelay`, `TimingWindow` und `SweetSpotRadius`.
+Ab hier wird nicht mehr an der Mechanik gedreht, sondern gezählt.
 
 Zu bauen:
 
-1. **Ballwurf**: Ball steigt beim Tastendruck, Trefferfenster nahe dem Scheitel
-2. **Aufschlagrichtung** über `CourtDefinition.GetServiceBox` / `IsInServiceBox` — beides
-   existiert seit M1 und ist geprüft
-3. **Aufschlagposition** über `GetServePosition(serverSide, deuceCourt)`, ebenfalls vorhanden
-4. **Erster und zweiter Aufschlag**, Doppelfehler
-5. **`Debug/BallFeeder.cs` und seine Verdrahtung im Setup-Skript entfernen**, sobald der
-   Aufschlag Bälle ins Spiel bringt
-6. Neue `Tools/verify_serve.cs` mit denselben Standards
+1. **`TennisScore` als reine C#-Klasse**: 15/30/40, Einstand, Vorteil, Spiele, Satz bis 6 mit
+   zwei Vorsprung, Tiebreak bei 6:6. Keine `MonoBehaviour`-Abhängigkeit — das ist die Klasse,
+   die **EditMode-Unit-Tests** verdient (`unity test`), nicht nur eine `verify_*.cs`
+2. **`RuleEvaluator`**: Aus, Netz, Doppelaufsprung, wer den Punkt gewinnt. Die Bausteine
+   stehen: `CourtDefinition.IsInBounds`, `Ball.BounceCount`, `ServeSolver.Judge`
+3. **Aufschlag- und Seitenwechsel**: Aufschlagrecht nach jedem Spiel, Seitenwechsel nach
+   ungeraden Spielen
+4. **`Debug/ServePracticeDriver.cs` und seine Verdrahtung entfernen**, sobald das Regelwerk
+   entscheidet, wann der nächste Aufschlag kommt
+5. Neue `Tools/verify_rules.cs` für die Verdrahtung, Unit-Tests für die Zählweise
 
-Netzroller beim Aufschlag zählen laut Plan als normal — **kein Let**, das spart einen
-Sonderfall.
+Die Sonderfälle stehen im Plan: **kein Let** beim Aufschlag, Einzel, ein Satz.
 
 ---
 

@@ -13,6 +13,10 @@ namespace ArcadeTennis.Presentation
     public class SwingIndicator : MonoBehaviour
     {
         [SerializeField] SwingController swing;
+
+        [Tooltip("Optional. When the serve is charging, the bar shows that instead.")]
+        [SerializeField] ServeController serve;
+
         [SerializeField] Transform character;
         [SerializeField] Transform fill;
         [SerializeField] Transform background;
@@ -33,6 +37,10 @@ namespace ArcadeTennis.Presentation
         [SerializeField] Color lateColor = new Color(1f, 0.52f, 0.22f, 1f);
         [SerializeField] Color missColor = new Color(1f, 0.28f, 0.28f, 1f);
 
+        [Tooltip("A serve can be struck flawlessly and still be a fault, so the fault " +
+                 "colour has to override the contact grade rather than sit beside it.")]
+        [SerializeField] Color faultColor = new Color(1f, 0.35f, 0.45f, 1f);
+
         [Header("Flash")]
         [SerializeField] float flashDuration = 0.55f;
 
@@ -52,11 +60,29 @@ namespace ArcadeTennis.Presentation
         void OnEnable()
         {
             if (swing != null) swing.Contacted += OnContacted;
+            if (serve != null)
+            {
+                serve.Contacted += OnContacted;
+                serve.Resolved += OnServeResolved;
+            }
         }
 
         void OnDisable()
         {
             if (swing != null) swing.Contacted -= OnContacted;
+            if (serve != null)
+            {
+                serve.Contacted -= OnContacted;
+                serve.Resolved -= OnServeResolved;
+            }
+        }
+
+        void OnServeResolved(ServeOutcome outcome, bool doubleFault)
+        {
+            if (outcome == ServeOutcome.In) return;
+
+            flashRemaining = flashDuration * (doubleFault ? 2f : 1f);
+            flashColor = faultColor;
         }
 
         void OnContacted(SwingContact contact)
@@ -83,7 +109,7 @@ namespace ArcadeTennis.Presentation
 
             if (flashRemaining > 0f) flashRemaining -= Time.deltaTime;
 
-            bool charging = swing.IsCharging;
+            bool charging = swing.IsCharging || (serve != null && serve.IsCharging);
             bool flashing = flashRemaining > 0f;
 
             SetVisible(charging || flashing);
@@ -100,7 +126,9 @@ namespace ArcadeTennis.Presentation
 
             // A flash shows the finished stroke, so it always reads as full;
             // only a charge in progress is a partial bar.
-            float amount = charging ? Mathf.Clamp01(swing.Power) : 1f;
+            float amount = !charging ? 1f
+                : (serve != null && serve.IsCharging ? Mathf.Clamp01(serve.Charge)
+                                                     : Mathf.Clamp01(swing.Power));
 
             fill.localScale = new Vector3(width * amount, thickness, 0.02f);
             fill.localPosition = new Vector3(-width * 0.5f + width * amount * 0.5f, 0f, -0.01f);

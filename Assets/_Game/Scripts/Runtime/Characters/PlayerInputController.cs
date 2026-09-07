@@ -18,6 +18,7 @@ namespace ArcadeTennis.Characters
 
         TennisCharacter character;
         SwingController swing;
+        ServeController serve;
         InputActionMap matchMap;
         InputAction moveAction;
         InputAction swingAction;
@@ -26,6 +27,7 @@ namespace ArcadeTennis.Characters
         {
             character = GetComponent<TennisCharacter>();
             swing = GetComponent<SwingController>();
+            serve = GetComponent<ServeController>();
 
             if (controls == null)
             {
@@ -49,13 +51,25 @@ namespace ArcadeTennis.Characters
             Vector2 move = moveAction.ReadValue<Vector2>();
             character.SetMoveIntent(move);
 
-            if (swing == null) return;
+            bool held = swingAction != null && swingAction.IsPressed();
 
             // One stick does both jobs, as it does in every arcade tennis game:
             // where you run is where you aim. Splitting them would need a second
             // stick the keyboard does not have.
-            swing.SetAim(move);
-            swing.SetSwingHeld(swingAction != null && swingAction.IsPressed());
+            //
+            // Both strokes are fed unconditionally; which of them is listening is
+            // the serve's business, not the input's.
+            if (swing != null)
+            {
+                swing.SetAim(move);
+                swing.SetSwingHeld(held);
+            }
+
+            if (serve != null)
+            {
+                serve.SetAim(move);
+                serve.SetSwingHeld(held);
+            }
         }
     }
 }
