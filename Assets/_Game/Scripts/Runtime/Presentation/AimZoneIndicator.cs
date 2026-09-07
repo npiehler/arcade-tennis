@@ -33,8 +33,10 @@ namespace ArcadeTennis.Presentation
         [SerializeField] float groundOffset = 0.03f;
         [SerializeField] float ringThickness = 0.16f;
         [SerializeField] float lineWidth = 0.09f;
-        [SerializeField] Color rallyColor = new Color(0.45f, 0.85f, 1f, 1f);
-        [SerializeField] Color serveColor = new Color(1f, 0.80f, 0.35f, 1f);
+        [Tooltip("One colour for both strokes. A second colour for the serve only raised " +
+                 "the question of what it meant -- where the ring sits already says whether " +
+                 "this is a serve or a rally.")]
+        [SerializeField] Color markerColor = new Color(0.45f, 0.85f, 1f, 1f);
 
         MeshFilter ringFilter;
         Renderer ringRenderer;
@@ -94,7 +96,7 @@ namespace ArcadeTennis.Presentation
             ring.rotation = Quaternion.identity;
 
             DrawLine(character.transform.position, spot);
-            SetColor(serveAiming ? serveColor : rallyColor);
+            SetColor(markerColor);
         }
 
         void SetVisible(bool visible)

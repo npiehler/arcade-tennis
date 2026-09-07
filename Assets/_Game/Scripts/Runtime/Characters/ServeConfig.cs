@@ -80,6 +80,16 @@ namespace ArcadeTennis.Characters
         [Tooltip("Apex above the contact point at full charge: flatter and faster.")]
         [SerializeField] float apexFull = 0.08f;
 
+        [Tooltip("Apex for a serve into one of the SHORT zones, worst contact. The deep " +
+                 "values are far too flat for these: from full stretch above the head, a " +
+                 "ball meant to land three metres past the net has to be lofted or it " +
+                 "simply arrives at the net instead -- which made the marker promise a " +
+                 "zone the ball could not reach.")]
+        [SerializeField] float apexShortWeak = 1.50f;
+
+        [Tooltip("Apex for a short serve at flawless contact.")]
+        [SerializeField] float apexShortFull = 0.85f;
+
         public float TossHeight => tossHeight;
         public float TossSpeed => tossSpeed;
         public float TossReach => tossReach;
@@ -106,6 +116,8 @@ namespace ArcadeTennis.Characters
 
         public float ApexWeak => apexWeak;
         public float ApexFull => apexFull;
+        public float ApexShortWeak => apexShortWeak;
+        public float ApexShortFull => apexShortFull;
 
         /// <summary>The contact numbers as <see cref="SwingSolver.Evaluate"/> wants them.</summary>
         public ContactTuning Contact() =>

@@ -295,6 +295,29 @@ foreach (var z in new ArcadeTennis.Court.AimZone[] { ArcadeTennis.Court.AimZone.
     check("the " + z + " zone stays playable across the quality range", playable >= 19);
 }
 
+// The marker draws the ring from the zone's centre and extents; the ball is
+// sent by the solver. If those two ever disagree, the marker promises ground
+// the ball cannot reach -- which is exactly what went wrong on the serve, and
+// only showed up by measuring rather than by playing.
+bool markerHonest = true;
+foreach (var z in new ArcadeTennis.Court.AimZone[] { ArcadeTennis.Court.AimZone.ShortLeft,
+    ArcadeTennis.Court.AimZone.Deep, ArcadeTennis.Court.AimZone.ShortRight })
+{
+    var ringCentre = ArcadeTennis.Court.AimZones.GroundZoneCentre(court, -1, z);
+    var ringExtents = ArcadeTennis.Court.AimZones.GroundZoneExtents(court, z);
+
+    for (float q = 0f; q <= 1.0001f; q += 0.1f)
+    {
+        var shot = playOut(contactPoint, q, z);
+        if (!shot.IsBounce) { markerHonest = false; continue; }
+
+        float nx = (shot.Position.x - ringCentre.x) / ringExtents.x;
+        float nz = (UnityEngine.Mathf.Abs(shot.Position.z) - ringCentre.y) / ringExtents.y;
+        if (nx * nx + nz * nz > 1f) markerHonest = false;
+    }
+}
+check("the ball always lands inside the ring the marker drew", markerHonest);
+
 var deepWeak = playOut(contactPoint, 0f, ArcadeTennis.Court.AimZone.Deep);
 check("a badly met deep ball still lands, but short of where it was aimed",
     deepWeak.IsBounce && deepWeak.Position.z < deep.z - 1f);

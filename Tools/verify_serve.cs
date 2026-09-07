@@ -216,7 +216,7 @@ System.Func<int, bool, ArcadeTennis.Court.AimZone, float, string> fly =
         var target = ArcadeTennis.Characters.ServeSolver.ResolveTarget(
             server, deuce, zone, judged, cfg, court, noSpread);
         var v = ArcadeTennis.BallPhysics.BallSimulation.SolveLaunchVelocity(
-            from, target, ArcadeTennis.Characters.ServeSolver.ResolveApex(judged, cfg),
+            from, target, ArcadeTennis.Characters.ServeSolver.ResolveApex(zone, judged, cfg),
             ballCfg, court, dt);
         var p = ArcadeTennis.BallPhysics.BallSimulation.Predict(
             new ArcadeTennis.BallPhysics.BallState(from, v), ballCfg, court, dt);
@@ -250,6 +250,39 @@ foreach (var zone in new ArcadeTennis.Court.AimZone[] { ArcadeTennis.Court.AimZo
     check(who + ": Bahn [" + line + "]", inCount >= 8);
     check(who + ": Netz zuerst, dann drin -- keine Sprünge", ordered);
 }
+
+// Der Marker zeichnet Mitte und Ausdehnung der Zone, der Solver schickt den
+// Ball. Weichen die beiden voneinander ab, verspricht der Marker Boden, den der
+// Ball nicht erreicht -- genau das war beim Aufschlag der Fall, und es zeigte
+// sich erst beim Nachmessen, nicht beim Spielen.
+bool markerHonest = true;
+foreach (bool deuce in new bool[] { true, false })
+foreach (var zone in new ArcadeTennis.Court.AimZone[] { ArcadeTennis.Court.AimZone.ShortLeft,
+    ArcadeTennis.Court.AimZone.Deep, ArcadeTennis.Court.AimZone.ShortRight })
+{
+    var ringCentre = ArcadeTennis.Court.AimZones.ServeZoneCentre(court, -1, deuce, zone);
+    var ringExtents = ArcadeTennis.Court.AimZones.ServeZoneExtents(court, zone);
+    var from = ArcadeTennis.Characters.ServeSolver.HitCentre(
+        court.GetServePosition(-1, deuce), -1, cfg);
+
+    for (float q = 0f; q <= 1.0001f; q += 0.1f)
+    {
+        var judged = new ArcadeTennis.Characters.SwingContact { Made = true, Quality = q };
+        var target = ArcadeTennis.Characters.ServeSolver.ResolveTarget(
+            -1, deuce, zone, judged, cfg, court, noSpread);
+        var v = ArcadeTennis.BallPhysics.BallSimulation.SolveLaunchVelocity(from, target,
+            ArcadeTennis.Characters.ServeSolver.ResolveApex(zone, judged, cfg), ballCfg, court, dt);
+        var p2 = ArcadeTennis.BallPhysics.BallSimulation.Predict(
+            new ArcadeTennis.BallPhysics.BallState(from, v), ballCfg, court, dt);
+
+        if (!p2.IsBounce) { markerHonest = false; continue; }
+
+        float nx = (p2.Position.x - ringCentre.x) / ringExtents.x;
+        float nz = (UnityEngine.Mathf.Abs(p2.Position.z) - ringCentre.y) / ringExtents.y;
+        if (nx * nx + nz * nz > 1f) markerHonest = false;
+    }
+}
+check("der Ball landet immer in dem Ring, den der Marker gezeichnet hat", markerHonest);
 
 // =========================================================================
 // Das Urteil

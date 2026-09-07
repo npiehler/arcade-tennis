@@ -152,7 +152,7 @@ namespace ArcadeTennis.Characters
                 character.Side, serve.DeuceCourt, zone, contact, config, character.Court,
                 UnityEngine.Random.insideUnitCircle);
 
-            float apex = ServeSolver.ResolveApex(contact, config);
+            float apex = ServeSolver.ResolveApex(zone, contact, config);
             ball.LaunchAt(contact.Point, LastTarget, apex);
 
             // From here the ball's own first event decides, rather than a second

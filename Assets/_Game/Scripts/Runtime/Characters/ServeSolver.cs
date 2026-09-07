@@ -200,11 +200,20 @@ namespace ArcadeTennis.Characters
             return AimZones.ToWorld(server, x, depth);
         }
 
-        /// <summary>Apex above the contact point. Clean contact flattens the serve.</summary>
-        public static float ResolveApex(SwingContact contact, ServeConfig config)
+        /// <summary>
+        /// Apex above the contact point. Clean contact flattens the serve -- but a
+        /// serve into one of the short zones needs its own, far higher arc, for
+        /// the same reason a short rally ball does: from above the head there is
+        /// no flat line that both clears the net and comes down that early.
+        /// </summary>
+        public static float ResolveApex(AimZone zone, SwingContact contact, ServeConfig config)
         {
             if (config == null) return 0.3f;
-            return Mathf.Lerp(config.ApexWeak, config.ApexFull, Mathf.Clamp01(contact.Quality));
+
+            float quality = Mathf.Clamp01(contact.Quality);
+            return zone == AimZone.Deep
+                ? Mathf.Lerp(config.ApexWeak, config.ApexFull, quality)
+                : Mathf.Lerp(config.ApexShortWeak, config.ApexShortFull, quality);
         }
 
         /// <summary>

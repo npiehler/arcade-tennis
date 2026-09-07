@@ -75,7 +75,7 @@ foreach (var zone in zones)
         var t = ArcadeTennis.Characters.ServeSolver.ResolveTarget(-1, deuce, zone, c, srv, court,
             UnityEngine.Vector2.zero);
         var v = ArcadeTennis.BallPhysics.BallSimulation.SolveLaunchVelocity(from, t,
-            ArcadeTennis.Characters.ServeSolver.ResolveApex(c, srv), ballCfg, court, dt);
+            ArcadeTennis.Characters.ServeSolver.ResolveApex(zone, c, srv), ballCfg, court, dt);
         var p = ArcadeTennis.BallPhysics.BallSimulation.Predict(
             new ArcadeTennis.BallPhysics.BallState(from, v), ballCfg, court, dt);
         line.Append(!p.HasResult ? "?" : p.IsNetHit ? "n"
@@ -109,7 +109,7 @@ for (float strike = 0f; strike <= 1.05f; strike += 0.05f)
         var t2 = ArcadeTennis.Characters.ServeSolver.ResolveTarget(-1, true,
             ArcadeTennis.Court.AimZone.Deep, contact, srv, court, UnityEngine.Vector2.zero);
         var v = ArcadeTennis.BallPhysics.BallSimulation.SolveLaunchVelocity(hitCentre, t2,
-            ArcadeTennis.Characters.ServeSolver.ResolveApex(contact, srv), ballCfg, court, dt);
+            ArcadeTennis.Characters.ServeSolver.ResolveApex(ArcadeTennis.Court.AimZone.Deep, contact, srv), ballCfg, court, dt);
         var p = ArcadeTennis.BallPhysics.BallSimulation.Predict(
             new ArcadeTennis.BallPhysics.BallState(hitCentre, v), ballCfg, court, dt);
         word = !p.HasResult ? "?" : p.IsNetHit ? "Netz"

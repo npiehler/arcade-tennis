@@ -26,6 +26,10 @@ dafür, dass die Laufrichtung nicht mehr aus Versehen die Schlagrichtung bestimm
 Die Trefferqualität entscheidet, **wie weit** der Ball ins gewählte Feld kommt: sauber
 getroffen bis in die Mitte der Zone, schlecht getroffen bis zu `DepthShortfall` davor.
 
+Der Marker hat **eine** Farbe für beide Schlagarten. Vorher war der Aufschlag gelb und der
+Ballwechsel blau, was nur die Frage aufwarf, was der Unterschied bedeutet — wo der Ring liegt,
+sagt ohnehin, ob gerade aufgeschlagen wird.
+
 ---
 
 ## 1. Umgebung
@@ -281,8 +285,8 @@ nächsten Rebuild verloren.
 | `verify_court.cs` | 18 Prüfungen: Maße, Aus/Drin, Aufschlagfelder, Netz, generierte Geometrie |
 | `verify_ball.cs` | 13 Prüfungen: Vorhersagegenauigkeit, Solver, Netz, Tunneling, Energieverlust |
 | `verify_character.cs` | 21 Prüfungen: Steuerung, Tempo, Bremsen, Grenzen, Netzlinie, Szenenverdrahtung |
-| `verify_swing.cs` | 56 Prüfungen: Zustandsautomat, Trefferurteil, Ziel und Bogen, Ziel-Deadzone, Flug durch die echte Ballsimulation, Netz/Drin/Aus-Bänder, Szenenverdrahtung |
-| `verify_serve.cs` | 73 Prüfungen: Aufschlaggeometrie, Ballwurf, Zustandsautomat, erster/zweiter Aufschlag, Zielsetzung, Flug, Urteil, Rhythmus, Szenenverdrahtung |
+| `verify_swing.cs` | 57 Prüfungen: Zustandsautomat, Trefferurteil, Ziel und Bogen, Ziel-Deadzone, Flug durch die echte Ballsimulation, Netz/Drin/Aus-Bänder, Szenenverdrahtung |
+| `verify_serve.cs` | 74 Prüfungen: Aufschlaggeometrie, Ballwurf, Zustandsautomat, erster/zweiter Aufschlag, Zielsetzung, Flug, Urteil, Rhythmus, Szenenverdrahtung |
 | `sweep_shots.cs` | **Kein Test, ein Stellwerkzeug.** Fährt die Trefferqualität von 0 bis 1 für beide Schläge und alle drei Zonen und meldet, was der Ball tut, plus die Wurfrhythmus-Tabelle. Nach jeder Änderung an `SwingConfig.asset` oder `ServeConfig.asset` laufen lassen |
 | `pose_shot.cs` | Ball für Screenshots eingefroren mitten in den Flug stellen (`SHOT_INDEX`/`STEPS` werden per `sed` ersetzt) |
 | `pose_net_shot.cs` | Dasselbe für einen Netztreffer |
@@ -299,7 +303,7 @@ for f in verify_court verify_ball verify_character verify_swing verify_serve; do
 done
 ```
 
-**Erwartet: 18 / 13 / 21 / 56 / 73 PASS, 0 FAIL** — zusammen 181. Nach jeder Änderung laufen lassen. Neue Mechanik
+**Erwartet: 18 / 13 / 21 / 57 / 74 PASS, 0 FAIL** — zusammen 183. Nach jeder Änderung laufen lassen. Neue Mechanik
 bekommt eine eigene `verify_*.cs`.
 
 ---
@@ -489,12 +493,19 @@ ohnehin hat. Im Aufschlagfeld dasselbe im Kleinen. `AimZones` rechnet beides aus
 `CourtDefinition`, und der Marker zeichnet sich aus denselben Zahlen — er kann nicht anfangen
 zu lügen, wenn jemand die Tiefen verstellt.
 
+**Der Marker muss zeichnen, wo der Ball wirklich landet.** Beim Aufschlag tat er das nicht:
+die kurzen Zonen waren bei schlechtem Kontakt gar nicht erreichbar, der Ball kam am Netz an
+(`z = 0,0`), der Ring versprach trotzdem das Feld. Beide Prüfsuiten haben dafür jetzt einen
+Test, der für jede Zone über die ganze Qualitätsspanne nachrechnet, ob der Aufkommpunkt in der
+gezeichneten Ellipse liegt.
+
 **Kurze Bälle brauchen mehr Bogen, nicht weniger.** Der erste Versuch gab allen Zonen dieselbe
 Bogenkurve, worauf die kurzen Zonen bis Trefferqualität 0,5 ins Netz fielen und die tiefe nie —
 genau verkehrt herum. Einen Ball wenige Meter hinter dem Netz aufkommen zu lassen verlangt, ihn
 zu heben und steil fallen zu lassen. Deshalb haben die kurzen Zonen eigene Bogenwerte
 (`ApexShortWeak`/`ApexShortFull`), und ein verzogener kurzer Ball wird ein hoher, langsamer —
-eine Einladung statt eines gelungenen Stoppballs.
+eine Einladung statt eines gelungenen Stoppballs. Beim Aufschlag galt dasselbe, nur habe ich es
+dort zunächst nicht angewendet — das war die Ursache der falschen gelben Zielfelder.
 
 **Zwei Funde beim Bauen:**
 

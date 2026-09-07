@@ -33,3 +33,5 @@ MonoBehaviour:
   lateralSpreadFactor: 0.35
   apexWeak: 0.15
   apexFull: 0.08
+  apexShortWeak: 1.5
+  apexShortFull: 0.85
