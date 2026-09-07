@@ -8,10 +8,10 @@ namespace ArcadeTennis.Characters
         /// <summary>Standing at the line, ball in hand.</summary>
         Ready,
 
-        /// <summary>Ball in the air, power building.</summary>
+        /// <summary>Ball in the air, waiting for the strike.</summary>
         Tossing,
 
-        /// <summary>Released; the racket is on its way to the ball.</summary>
+        /// <summary>Struck at; the racket is on its way to the ball.</summary>
         Swinging,
 
         /// <summary>Struck and away. The rally owns the ball from here.</summary>
@@ -52,9 +52,11 @@ namespace ArcadeTennis.Characters
     public struct ServeState
     {
         public ServePhase Phase;
-        public float Charge;
         public float PhaseTime;
         public bool ContactResolved;
+
+        /// <summary>Last tick's button state: the toss and the strike are two separate presses.</summary>
+        public bool ButtonWasDown;
 
         /// <summary>1 or 2. A fault on the second is a double fault.</summary>
         public int ServeNumber;
@@ -89,12 +91,18 @@ namespace ArcadeTennis.Characters
             action = ServeAction.None;
             if (config == null) return;
 
+            // Two presses, not a hold: one throws the ball up, one swings at it.
+            // Edge-triggered so a player who keeps the button down after the toss
+            // does not swing straight through it.
+            bool pressed = holding && !state.ButtonWasDown;
+            state.ButtonWasDown = holding;
+
             state.PhaseTime += deltaTime;
 
             switch (state.Phase)
             {
                 case ServePhase.Ready:
-                    if (holding)
+                    if (pressed)
                     {
                         Enter(ref state, ServePhase.Tossing);
                         action = ServeAction.Toss;
@@ -110,12 +118,7 @@ namespace ArcadeTennis.Characters
                         break;
                     }
 
-                    if (holding)
-                    {
-                        float rate = config.ChargeTime > 0.0001f ? deltaTime / config.ChargeTime : 1f;
-                        state.Charge = Mathf.Clamp01(state.Charge + rate);
-                    }
-                    else
+                    if (pressed)
                     {
                         Enter(ref state, ServePhase.Swinging);
                         state.ContactResolved = false;
@@ -136,7 +139,6 @@ namespace ArcadeTennis.Characters
         {
             state.Phase = phase;
             state.PhaseTime = 0f;
-            if (phase == ServePhase.Tossing || phase == ServePhase.Ready) state.Charge = 0f;
         }
 
         /// <summary>Where the ball leaves the hand: in front of the server, at toss height.</summary>
@@ -163,24 +165,23 @@ namespace ArcadeTennis.Characters
         public static Vector3 TossVelocity(ServeConfig config) =>
             config == null ? Vector3.zero : Vector3.up * config.TossSpeed;
 
-        /// <summary>Charge that actually reaches the ball, docked for poor contact.</summary>
-        public static float EffectivePower(float power, SwingContact contact, ServeConfig config)
+        /// <summary>
+        /// How deep into the box the serve is sent. With no charge to hold, the
+        /// contact is the whole skill: meet the toss well and the serve is deep,
+        /// meet it badly and it drops at the net.
+        /// </summary>
+        public static float ResolveDepth(SwingContact contact, ServeConfig config)
         {
-            if (config == null) return power;
-            return Mathf.Clamp01(power) * Mathf.Lerp(config.MinQualityPower, 1f, contact.Quality);
+            if (config == null) return 4f;
+            return Mathf.Lerp(config.WeakDepth, config.StrongDepth, Mathf.Clamp01(contact.Quality));
         }
 
         /// <summary>
-        /// Where the serve is aimed. Charge sets the depth, from the foot of the
-        /// net to past the service line; the aim slides the ball between the
-        /// centre line and the sideline of the box it has to hit.
-        ///
-        /// The lateral range is anchored to the box rather than to the court, so
-        /// a centred stick always aims at the middle of the box the server is
-        /// actually serving to -- and because the box the server faces is always
-        /// the diagonal one, pushing left still means left on screen.
+        /// Where the serve is aimed. The server picks one of three lanes inside
+        /// the box they have to hit -- wide, body or down the middle -- and the
+        /// contact decides how deep into it the ball lands.
         /// </summary>
-        public static Vector3 ResolveTarget(int serverSide, bool deuceCourt, float power, Vector2 aim,
+        public static Vector3 ResolveTarget(int serverSide, bool deuceCourt, AimZone zone,
                                             SwingContact contact, ServeConfig config,
                                             CourtDefinition court, Vector2 spread)
         {
@@ -190,35 +191,31 @@ namespace ArcadeTennis.Characters
             int receiver = -server;
             Rect box = court.GetServiceBox(receiver, deuceCourt);
 
-            float effective = EffectivePower(power, contact, config);
-            float depth = Mathf.Lerp(config.MinDepth,
-                court.ServiceLineDistance + config.ServiceLineOvershoot, effective);
-
-            float aimX = Mathf.Clamp(aim.x, -1f, 1f) * (server < 0 ? 1f : -1f);
-            float lateral = box.center.x + aimX * box.width * 0.5f * config.AimWidth;
+            Vector3 nominal = AimZones.ServeTarget(court, server, deuceCourt, zone,
+                ResolveDepth(contact, config));
 
             float scatter = Mathf.Lerp(config.MaxSpread, config.MinSpread, contact.Quality);
             Vector2 offset = Vector2.ClampMagnitude(spread, 1f) * scatter;
             offset.x *= config.LateralSpreadFactor;
 
-            float x = lateral + offset.x;
-            float finalDepth = depth + offset.y;
+            float x = Mathf.Clamp(nominal.x + offset.x,
+                Mathf.Min(box.xMin, box.xMax) - config.OutMargin,
+                Mathf.Max(box.xMin, box.xMax) + config.OutMargin);
 
-            // Missing has to stay possible, but not by half a court.
-            float boxNear = Mathf.Min(box.xMin, box.xMax) - config.OutMargin;
-            float boxFar = Mathf.Max(box.xMin, box.xMax) + config.OutMargin;
-            x = Mathf.Clamp(x, boxNear, boxFar);
-            finalDepth = Mathf.Clamp(finalDepth, config.MinDepth * 0.5f,
-                court.ServiceLineDistance + config.OutMargin);
+            // nominal.z already carries the receiver's sign, so multiplying by it
+            // again gives the plain distance from the net. Negating it here sent
+            // every serve to the foot of the net instead.
+            float depth = Mathf.Clamp(receiver * nominal.z + offset.y,
+                config.WeakDepth * 0.4f, court.ServiceLineDistance + config.OutMargin);
 
-            return new Vector3(x, 0f, receiver * finalDepth);
+            return new Vector3(x, 0f, receiver * depth);
         }
 
-        /// <summary>Apex above the contact point. Power flattens the serve, as it should.</summary>
-        public static float ResolveApex(float power, SwingContact contact, ServeConfig config)
+        /// <summary>Apex above the contact point. Clean contact flattens the serve.</summary>
+        public static float ResolveApex(SwingContact contact, ServeConfig config)
         {
             if (config == null) return 0.3f;
-            return Mathf.Lerp(config.ApexWeak, config.ApexFull, EffectivePower(power, contact, config));
+            return Mathf.Lerp(config.ApexWeak, config.ApexFull, Mathf.Clamp01(contact.Quality));
         }
 
         /// <summary>
@@ -248,7 +245,6 @@ namespace ArcadeTennis.Characters
 
             state.Phase = ServePhase.Ready;
             state.PhaseTime = 0f;
-            state.Charge = 0f;
             state.ContactResolved = false;
             state.ServeNumber = doubleFault ? 1 : 2;
 
@@ -260,7 +256,6 @@ namespace ArcadeTennis.Characters
         {
             state.Phase = ServePhase.Ready;
             state.PhaseTime = 0f;
-            state.Charge = 0f;
             state.ContactResolved = false;
             state.ServeNumber = 1;
             state.DeuceCourt = !state.DeuceCourt;

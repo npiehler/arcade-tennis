@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 using ArcadeTennis.BallPhysics;
+using ArcadeTennis.Court;
 
 namespace ArcadeTennis.Characters
 {
@@ -19,7 +20,7 @@ namespace ArcadeTennis.Characters
 
         TennisCharacter character;
         SwingState swing;
-        Vector2 aim;
+        AimZone zone = AimZone.Centre;
         bool holding;
         bool suspended;
 
@@ -31,9 +32,11 @@ namespace ArcadeTennis.Characters
 
         public SwingConfig Config => config;
         public SwingPhase Phase => swing.Phase;
-        public float Charge => swing.Charge;
-        public float Power => swing.Power(config);
-        public bool IsCharging => swing.Phase == SwingPhase.Charging;
+
+        /// <summary>Which of the three zones the next stroke is aimed at.</summary>
+        public AimZone Zone => zone;
+
+        public bool IsSwinging => swing.Phase == SwingPhase.Swinging;
 
         /// <summary>
         /// Set while the serve owns the ball. Without it the rally stroke would
@@ -66,11 +69,11 @@ namespace ArcadeTennis.Characters
 
         void Awake() => character = GetComponent<TennisCharacter>();
 
-        /// <summary>Raw button state. Holding charges; letting go swings.</summary>
+        /// <summary>Raw button state. The stroke fires on the press, not on the hold.</summary>
         public void SetSwingHeld(bool held) => holding = held;
 
-        /// <summary>Aim in the same screen space the move intent uses; x is what steers the shot sideways.</summary>
-        public void SetAim(Vector2 value) => aim = value;
+        /// <summary>Picks the zone the next stroke is sent to.</summary>
+        public void SetZone(AimZone value) => zone = value;
 
         void FixedUpdate()
         {
@@ -102,18 +105,11 @@ namespace ArcadeTennis.Characters
 
             if (contact.Made)
             {
-                float power = swing.Power(config);
-
-                // Same deadzone as the legs, so an idle stick aims straight ahead
-                // instead of quietly pulling the ball off centre.
-                float deadzone = character.Config != null ? character.Config.InputDeadzone : 0f;
-                Vector2 steered = SwingSolver.ApplyAimDeadzone(aim, deadzone);
-
                 LastTarget = SwingSolver.ResolveTarget(
-                    character.Side, power, steered, contact, config, character.Court,
+                    character.Side, zone, contact, config, character.Court,
                     UnityEngine.Random.insideUnitCircle);
 
-                float apex = SwingSolver.ResolveApex(power, contact, contact.Point, config);
+                float apex = SwingSolver.ResolveApex(contact, contact.Point, config);
                 ball.LaunchAt(contact.Point, LastTarget, apex);
             }
 

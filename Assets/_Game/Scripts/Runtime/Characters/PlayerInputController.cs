@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using ArcadeTennis.Court;
 
 namespace ArcadeTennis.Characters
 {
@@ -15,6 +16,7 @@ namespace ArcadeTennis.Characters
         [SerializeField] string actionMapName = "Match";
         [SerializeField] string moveActionName = "Move";
         [SerializeField] string swingActionName = "Swing";
+        [SerializeField] string aimActionName = "Aim";
 
         TennisCharacter character;
         SwingController swing;
@@ -22,6 +24,7 @@ namespace ArcadeTennis.Characters
         InputActionMap matchMap;
         InputAction moveAction;
         InputAction swingAction;
+        InputAction aimAction;
 
         void Awake()
         {
@@ -39,6 +42,7 @@ namespace ArcadeTennis.Characters
             matchMap = controls.FindActionMap(actionMapName, true);
             moveAction = matchMap.FindAction(moveActionName, true);
             swingAction = matchMap.FindAction(swingActionName, true);
+            aimAction = matchMap.FindAction(aimActionName, true);
         }
 
         void OnEnable() => matchMap?.Enable();
@@ -53,21 +57,25 @@ namespace ArcadeTennis.Characters
 
             bool held = swingAction != null && swingAction.IsPressed();
 
-            // One stick does both jobs, as it does in every arcade tennis game:
-            // where you run is where you aim. Splitting them would need a second
-            // stick the keyboard does not have.
-            //
+            // Aiming has its own keys rather than sharing the ones that run.
+            // Sharing them meant the direction you ran to reach the ball was the
+            // direction you hit it, and correcting that during the swing braked
+            // the run. The arrow keys used to be a second copy of WASD, so this
+            // costs nothing.
+            Vector2 aim = aimAction != null ? aimAction.ReadValue<Vector2>() : Vector2.zero;
+            AimZone zone = AimZones.FromInput(aim.x, AimZone.Centre);
+
             // Both strokes are fed unconditionally; which of them is listening is
             // the serve's business, not the input's.
             if (swing != null)
             {
-                swing.SetAim(move);
+                swing.SetZone(zone);
                 swing.SetSwingHeld(held);
             }
 
             if (serve != null)
             {
-                serve.SetAim(move);
+                serve.SetZone(zone);
                 serve.SetSwingHeld(held);
             }
         }

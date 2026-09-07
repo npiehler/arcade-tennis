@@ -44,7 +44,6 @@ namespace ArcadeTennis.Characters
         [SerializeField] float sweetSpotRadius = 0.30f;
 
         [Header("Timing")]
-        [SerializeField] float chargeTime = 0.80f;
         [SerializeField] float contactDelay = 0.16f;
         [SerializeField] float timingWindow = 0.16f;
         [SerializeField] float perfectWindow = 0.05f;
@@ -54,22 +53,17 @@ namespace ArcadeTennis.Characters
         [Range(0f, 1f)][SerializeField] float perfectThreshold = 0.82f;
         [Range(0f, 1f)][SerializeField] float goodThreshold = 0.45f;
 
-        [Header("Placement")]
-        [Tooltip("Distance past the net a zero-charge serve aims at: short enough to drop " +
-                 "into the net, so the charge can fail at the near end too.")]
-        [SerializeField] float minDepth = 0.60f;
+        [Header("Depth")]
+        [Tooltip("How deep into the box the worst contact that still connects lands. Short " +
+                 "enough that a badly met toss drops into the net -- meeting the ball well " +
+                 "is the whole skill of the serve now that there is no charge.")]
+        [SerializeField] float weakDepth = 1.20f;
 
-        [Tooltip("How far PAST the service line a full-charge serve aims. The serve has the " +
-                 "same bargain as the groundstroke: holding too long has to be a way to " +
-                 "lose the point.")]
-        [SerializeField] float serviceLineOvershoot = 1.00f;
+        [Tooltip("Depth of a flawlessly struck serve, measured from the net. Inside the " +
+                 "service line, so a clean serve is a good serve rather than a gamble.")]
+        [SerializeField] float strongDepth = 5.60f;
 
-        [Tooltip("Fraction of the service box's half width a full sideways aim reaches for. " +
-                 "Under 1 so a cleanly struck wide serve still finds the box; the keyboard " +
-                 "only ever gives a full press and cannot aim short of it.")]
-        [Range(0f, 2f)][SerializeField] float aimWidth = 0.92f;
-
-        [Tooltip("How far outside the box a serve may be aimed at all.")]
+        [Tooltip("How far outside the box a serve may stray at all.")]
         [SerializeField] float outMargin = 1.60f;
 
         [Header("Quality effects")]
@@ -83,11 +77,9 @@ namespace ArcadeTennis.Characters
                  "and a sideways slip is the difference between a serve and a fault.")]
         [Range(0f, 1f)][SerializeField] float lateralSpreadFactor = 0.35f;
 
-        [Range(0f, 1f)][SerializeField] float minQualityPower = 0.80f;
-
         [Header("Arc")]
         [Tooltip("Apex above the contact point for a soft serve.")]
-        [SerializeField] float apexWeak = 0.30f;
+        [SerializeField] float apexWeak = 0.15f;
 
         [Tooltip("Apex above the contact point at full charge: flatter and faster.")]
         [SerializeField] float apexFull = 0.08f;
@@ -101,7 +93,6 @@ namespace ArcadeTennis.Characters
         public float ReachRadius => reachRadius;
         public float SweetSpotRadius => sweetSpotRadius;
 
-        public float ChargeTime => chargeTime;
         public float ContactDelay => contactDelay;
         public float TimingWindow => timingWindow;
         public float PerfectWindow => perfectWindow;
@@ -110,15 +101,13 @@ namespace ArcadeTennis.Characters
         public float PerfectThreshold => perfectThreshold;
         public float GoodThreshold => goodThreshold;
 
-        public float MinDepth => minDepth;
-        public float ServiceLineOvershoot => serviceLineOvershoot;
-        public float AimWidth => aimWidth;
+        public float WeakDepth => weakDepth;
+        public float StrongDepth => strongDepth;
         public float OutMargin => outMargin;
 
         public float MaxSpread => maxSpread;
         public float MinSpread => minSpread;
         public float LateralSpreadFactor => lateralSpreadFactor;
-        public float MinQualityPower => minQualityPower;
 
         public float ApexWeak => apexWeak;
         public float ApexFull => apexFull;

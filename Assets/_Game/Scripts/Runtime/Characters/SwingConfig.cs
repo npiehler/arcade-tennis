@@ -3,34 +3,28 @@ using UnityEngine;
 namespace ArcadeTennis.Characters
 {
     /// <summary>
-    /// Tuning for the stroke, shared by the player and -- from milestone 7 on --
-    /// the AI, for the same reason <see cref="CharacterConfig"/> is shared: a
-    /// difficulty setting may change when a controller swings, never how good
+    /// Tuning for the rally stroke, shared by the player and -- from milestone 7
+    /// on -- the AI, for the same reason <see cref="CharacterConfig"/> is shared:
+    /// a difficulty setting may change when a controller swings, never how good
     /// the swing itself is allowed to be.
     ///
-    /// Shot variants (topspin, slice, lob, drop) are deliberately out of scope
-    /// for part 1. They would arrive as additional assets of this type selected
-    /// per stroke, which is why every number that describes a shot's shape lives
-    /// here rather than in the solver.
+    /// There is no charge here any more. Where the ball goes is chosen from three
+    /// zones; how well it gets there is decided by the contact alone. That makes
+    /// the stroke a single decision -- when to press -- instead of two that had
+    /// to be timed against each other.
+    ///
+    /// Shot variants (topspin, slice, lob, drop) remain out of scope for part 1.
+    /// They would arrive as additional assets of this type selected per stroke,
+    /// which is why every number describing a shot's shape lives here.
     /// </summary>
     [CreateAssetMenu(fileName = "SwingConfig", menuName = "Arcade Tennis/Swing Config")]
     public class SwingConfig : ScriptableObject
     {
-        [Header("Charge")]
-        [Tooltip("Seconds of holding the button to reach full charge.")]
-        [SerializeField] float chargeTime = 0.60f;
-
-        [Tooltip("Floor under the charge. Zero on purpose: a stab with nothing behind " +
-                 "it has to be able to drop into the net, because that is the feedback " +
-                 "that teaches the player what the charge is for.")]
-        [Range(0f, 1f)][SerializeField] float minCharge = 0f;
-
         [Header("Swing timing")]
-        [Tooltip("Delay between releasing the button and the racket meeting the ball. " +
-                 "This is what makes the stroke a timing decision: the player has to " +
-                 "swing before the ball arrives, not when it is already there. It is " +
-                 "also the window in which the aim can still be steered, because the " +
-                 "direction is read at contact rather than latched at release.")]
+        [Tooltip("Delay between the press and the racket meeting the ball. This is what " +
+                 "makes the stroke a timing decision: the player has to swing before the " +
+                 "ball arrives, not when it is already there. It is also the window in " +
+                 "which the target zone can still be changed.")]
         [SerializeField] float contactDelay = 0.18f;
 
         [Tooltip("Largest timing error that still connects. Beyond this the racket misses.")]
@@ -39,8 +33,8 @@ namespace ArcadeTennis.Characters
         [Tooltip("Timing error that still counts as flawless.")]
         [SerializeField] float perfectWindow = 0.045f;
 
-        [Tooltip("Total length of the swing. The character cannot start another " +
-                 "stroke until the swing and the recovery after it are through.")]
+        [Tooltip("Total length of the swing. No new stroke can start until the swing and " +
+                 "the recovery after it are through.")]
         [SerializeField] float swingDuration = 0.30f;
 
         [SerializeField] float recoverDuration = 0.16f;
@@ -50,33 +44,23 @@ namespace ArcadeTennis.Characters
                  "The outer limit is the character's reach radius.")]
         [SerializeField] float sweetSpotRadius = 0.55f;
 
-        [Tooltip("Quality at or above this grades Perfect.")]
         [Range(0f, 1f)][SerializeField] float perfectThreshold = 0.82f;
-
-        [Tooltip("Quality at or above this grades Good; below it the stroke is graded " +
-                 "Early or Late by the sign of the timing error.")]
         [Range(0f, 1f)][SerializeField] float goodThreshold = 0.45f;
 
-        [Header("Placement")]
-        [Tooltip("Distance past the net a zero-charge shot aims at. Close enough that " +
-                 "the ball arrives at the foot of the net and never gets over it.")]
-        [SerializeField] float minTargetDepth = 0.60f;
+        [Header("Depth")]
+        [Tooltip("How deep into the chosen zone the worst contact that still connects " +
+                 "lands. Short, so a mistimed ball is one the opponent can attack -- and " +
+                 "at the very bottom of the range, one that fails to clear the net.")]
+        [SerializeField] float weakDepth = 3.00f;
 
-        [Tooltip("How far PAST the opponent's baseline a full-charge shot aims. Holding " +
-                 "the button down is meant to be a way to lose the point: the charge has " +
-                 "to fail at both ends, or it is a depth dial rather than a decision.")]
-        [SerializeField] float baselineOvershoot = 1.70f;
+        [Tooltip("Depth of a flawlessly struck ball, measured from the net. Kept inside " +
+                 "the baseline: with the charge gone, hold time can no longer send a shot " +
+                 "long, so a clean stroke should not do it either.")]
+        [SerializeField] float strongDepth = 10.60f;
 
-        [Tooltip("Fraction of the singles half width a full sideways aim reaches for. " +
-                 "0.96 is as wide as this can go while a flawlessly struck ball still " +
-                 "clears the sideline through its own spread; past about 0.97 the best " +
-                 "possible contact starts losing the line, which the keyboard cannot " +
-                 "dodge because it only ever gives a full sideways press.")]
-        [Range(0f, 1.5f)][SerializeField] float aimWidth = 0.96f;
-
-        [Tooltip("How far past the sidelines and baseline a shot may be aimed. Missing " +
-                 "has to stay possible, but not into the stands.")]
-        [SerializeField] float outMargin = 2.2f;
+        [Tooltip("How far outside the lines a shot may stray at all. Missing has to stay " +
+                 "possible, but not by half a court.")]
+        [SerializeField] float outMargin = 2.20f;
 
         [Header("Quality effects")]
         [Tooltip("Random target offset in metres at the worst contact that still connects.")]
@@ -89,32 +73,21 @@ namespace ArcadeTennis.Characters
         [Tooltip("Share of the spread that is allowed to push the ball SIDEWAYS. Small on " +
                  "purpose. Depth is the player's own mistiming and reads as fair when it " +
                  "goes wrong, but direction is what they asked for -- scattering that reads " +
-                 "as the game ignoring the input, not as a punishment. Length pays for bad " +
-                 "contact; aim is honoured.")]
+                 "as the game ignoring the input. Length pays for bad contact; aim is kept.")]
         [Range(0f, 1f)][SerializeField] float lateralSpreadFactor = 0.30f;
 
-        [Tooltip("Share of the charge a worst-case contact still delivers. Kept high so " +
-                 "that hold time, not contact quality, decides depth -- otherwise the " +
-                 "charge is not learnable and a mistimed full swing quietly stays in. " +
-                 "Bad contact is punished through the spread instead.")]
-        [Range(0f, 1f)][SerializeField] float minQualityPower = 0.80f;
-
         [Header("Arc")]
-        [Tooltip("Apex above the contact point for a shot with no charge behind it. Low: " +
-                 "a ball that was barely swung at barely gets lifted, and a high arc " +
-                 "would carry even the weakest shot safely over the net.")]
-        [SerializeField] float apexWeak = 0.50f;
+        [Tooltip("Apex above the contact point for the worst contact: low, so a badly met " +
+                 "ball is barely lifted and can fall into the net.")]
+        [SerializeField] float apexWeak = 0.40f;
 
-        [Tooltip("Apex above the contact point at full charge.")]
+        [Tooltip("Apex above the contact point for flawless contact.")]
         [SerializeField] float apexFull = 1.45f;
 
-        [Tooltip("Peak height a FULL swing is guaranteed, so a ball met off the ground can " +
-                 "still be got over the net. Scaled by charge: the guarantee is something " +
-                 "the swing earns, not something every stab gets for free.")]
+        [Tooltip("Peak height a flawless stroke is guaranteed, so a ball met off the ground " +
+                 "can still be got over the net. Scaled by contact quality: the guarantee is " +
+                 "something the stroke earns, not something every stab gets for free.")]
         [SerializeField] float minPeakHeight = 1.75f;
-
-        public float ChargeTime => chargeTime;
-        public float MinCharge => minCharge;
 
         public float ContactDelay => contactDelay;
         public float TimingWindow => timingWindow;
@@ -126,15 +99,17 @@ namespace ArcadeTennis.Characters
         public float PerfectThreshold => perfectThreshold;
         public float GoodThreshold => goodThreshold;
 
-        public float MinTargetDepth => minTargetDepth;
-        public float BaselineOvershoot => baselineOvershoot;
-        public float AimWidth => aimWidth;
+        public float WeakDepth => weakDepth;
+        public float StrongDepth => strongDepth;
         public float OutMargin => outMargin;
 
         public float MaxSpread => maxSpread;
         public float MinSpread => minSpread;
         public float LateralSpreadFactor => lateralSpreadFactor;
-        public float MinQualityPower => minQualityPower;
+
+        public float ApexWeak => apexWeak;
+        public float ApexFull => apexFull;
+        public float MinPeakHeight => minPeakHeight;
 
         /// <summary>
         /// The contact numbers as the solver wants them. The reach comes from the
@@ -144,9 +119,5 @@ namespace ArcadeTennis.Characters
         public ContactTuning Contact(float reachRadius) =>
             new ContactTuning(sweetSpotRadius, reachRadius,
                 perfectWindow, timingWindow, perfectThreshold, goodThreshold);
-
-        public float ApexWeak => apexWeak;
-        public float ApexFull => apexFull;
-        public float MinPeakHeight => minPeakHeight;
     }
 }

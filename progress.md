@@ -3,7 +3,24 @@
 Übergabedokument für spätere Claude-Sessions. Der Spielentwurf steht in [plan.md](plan.md);
 hier steht, **was fertig ist** und **wie man an diesem Projekt arbeitet**.
 
-Stand: M0–M5 abgeschlossen. Als Nächstes **M6 (Regelwerk)**.
+Stand: M0–M5 abgeschlossen, Steuerung nach den Spieltests umgebaut. Als Nächstes
+**M6 (Regelwerk)**.
+
+### Steuerung
+
+| Eingabe | Wirkung |
+|---|---|
+| **WASD** / linker Stick | Laufen |
+| **Pfeiltasten** / rechter Stick / D-Pad | Zielzone wählen: links, Mitte, rechts |
+| **Leertaste** / A-Taste | Schlagen. Beim Aufschlag zweimal: werfen, dann schlagen |
+
+**Kein Aufladen.** Ein Druck, ein Schlag. Wie gut getroffen wird, entscheidet über die Tiefe:
+sauber getroffen geht der Ball tief, schlecht getroffen kurz, ganz schlecht ins Netz. Wohin er
+geht, entscheidet die Zone — und die ist als Ring mit Linie auf dem Platz zu sehen.
+
+Zielen liegt bewusst **nicht** auf denselben Tasten wie das Laufen. Vorher war die Richtung, in
+die man zum Ball lief, auch die Richtung, in die man schlug; das ließ sich nur korrigieren,
+indem man mitten im Schwung den Lauf abbremste.
 
 ---
 
@@ -81,7 +98,15 @@ sammeln sich Screenshots im Projekt.
 Fehlermeldung den korrekten Namen; alternativ:
 `unity cmd --query <befehl> --detail full --json` zeigt das komplette Schema.
 
-**Ein extern geändertes `.asset` lädt `refresh_assets` nicht neu.** Das ScriptableObject
+**`refresh_assets` gibt es nicht.** Der Befehl steht in keiner Kommandoliste und schlägt
+still fehl — die Konsole meldet „No command named 'refresh_assets' is available", aber die CLI
+gibt Erfolg zurück. Wer sich darauf verlässt, arbeitet gegen einen alten Stand:
+
+```bash
+unity cmd eval --code 'UnityEditor.AssetDatabase.Refresh(); return "ok";' --json
+```
+
+**Ein extern geändertes `.asset` lädt auch ein Refresh nicht zuverlässig neu.** Das ScriptableObject
 bleibt mit den alten Werten im Speicher, und man misst minutenlang gegen eine Einstellung, die
 gar nicht mehr auf der Platte steht. Nach jedem Editieren einer `.asset`-Datei von außen:
 
@@ -189,6 +214,7 @@ aufnehmen. `Tools/pose_shot.cs` macht genau das für den Ball. Danach `timeScale
 | Datei | Zweck |
 |---|---|
 | `Court/CourtDefinition.cs` | **Einzige Quelle aller Platzmaße.** `IsInBounds`, `GetServiceBox`, `IsInServiceBox`, `NetHeightAt`, `GetServePosition`, `GetBaselineCentre`, `ClampToPlayArea`, `ClampToOwnHalf` |
+| `Court/AimZones.cs` | **Die drei Zielzonen** als reine Geometrie: Bahnmitten und -breiten für Grundschlag und Aufschlagfeld, Spiegelung pro Seite, Eingabe → Zone |
 | `Court/CourtBuilder.cs` | Erzeugt die Geometrie aus der Definition unter `_Generated`. Idempotent, Kontextmenü „Rebuild Court". Gizmos für Feld, Aufschlagfelder, Netzkurve |
 | `Ball/BallPhysicsConfig.cs` | ScriptableObject: Gravitation, Luftwiderstand, Radius, Restitution, Reibung, Substepping |
 | `Ball/BallState.cs` | `BallState`, `BallEvent`, `BallPrediction` |
@@ -207,7 +233,9 @@ aufnehmen. `Tools/pose_shot.cs` macht genau das für den Ball. Danach `timeScale
 | `Characters/PlayerInputController.cs` | Liest `Move` und `Swing` aus dem Action Map und füttert Körper und Schlag |
 | `Presentation/MatchCamera.cs` | Kamera hinter der Grundlinie, **feste Rotation**, seitliche Parallelfahrt |
 | `Presentation/ReachIndicator.cs` | Reichweitenring, Mesh zur Laufzeit erzeugt (`HideAndDontSave`) |
-| `Presentation/SwingIndicator.cs` | Ladebalken über der Figur, blitzt nach dem Schlag in der Farbe der Trefferqualität |
+| `Presentation/SwingIndicator.cs` | Blitzt nach dem Schlag in der Farbe der Trefferqualität. War der Ladebalken; ohne Aufladung bleibt die Rückmeldung |
+| `Presentation/AimZoneIndicator.cs` | **Der Zielmarker.** Ring um die gewählte Zone plus Linie dorthin, gezeichnet aus denselben Zahlen, mit denen der Solver zielt |
+| `Utility/EllipseRingMesh.cs` | Elliptischer Umriss mit gleichmäßiger Strichstärke |
 | `Utility/RingMesh.cs` | Ringmesh-Generator |
 | `Debug/ServePracticeDriver.cs` | **Gerüst für M5, in M6 löschen.** Entscheidet nur, *wann* der nächste Aufschlag kommt — wer den Punkt gewinnt, ist Sache des Regelwerks |
 | `Input/TennisControls.inputactions` | Actions `Move`, `Swing`, `Pause`; Tastatur + Gamepad |
@@ -217,13 +245,16 @@ aufnehmen. `Tools/pose_shot.cs` macht genau das für den Ball. Danach `timeScale
 - Szene: `Assets/_Game/Scenes/Match.unity` (Build-Index 1)
 - Settings: `CourtDefinition.asset`, `BallPhysicsConfig.asset`, `CharacterConfig.asset`,
   `SwingConfig.asset`, `ServeConfig.asset`
-- 15 Materialien unter `Assets/_Game/Materials/`
+- 16 Materialien unter `Assets/_Game/Materials/`
+- `Assets/_Game/Shaders/AimMarker.shader` — unbeleuchtet, `ZTest Always`. Der Zielmarker ist
+  eine Anzeige und muss auch dann lesbar sein, wenn das Netz davorsteht; URP Lit bietet kein
+  `ZTest`
 
-### Szenenaufbau (`Match.unity`, 8 Roots)
+### Szenenaufbau (`Match.unity`, 9 Roots)
 
 `Sun` · `Court` (+`_Generated`, 75 Teile) · `Match Camera` · `Ball` · `Ball Systems`
 (Marker + Übungstreiber) · `Player` (+`Visual`, +`Swing Bar`) · `Opponent` (+`Visual`) ·
-`Reach Ring`
+`Reach Ring` · `Aim Zone` (Ring + Linie)
 
 Der Ladebalken hängt bewusst **nicht** unter `Visual`: in Teil 2 wird `Visual` gegen das
 Blender-Modell getauscht, das Feedback soll das überleben.
@@ -246,10 +277,9 @@ nächsten Rebuild verloren.
 | `verify_court.cs` | 18 Prüfungen: Maße, Aus/Drin, Aufschlagfelder, Netz, generierte Geometrie |
 | `verify_ball.cs` | 13 Prüfungen: Vorhersagegenauigkeit, Solver, Netz, Tunneling, Energieverlust |
 | `verify_character.cs` | 21 Prüfungen: Steuerung, Tempo, Bremsen, Grenzen, Netzlinie, Szenenverdrahtung |
-| `verify_swing.cs` | 63 Prüfungen: Zustandsautomat, Trefferurteil, Ziel und Bogen, Ziel-Deadzone, Flug durch die echte Ballsimulation, Netz/Drin/Aus-Bänder, Szenenverdrahtung |
-| `verify_serve.cs` | 69 Prüfungen: Aufschlaggeometrie, Ballwurf, Zustandsautomat, erster/zweiter Aufschlag, Zielsetzung, Flug, Urteil, Rhythmus, Szenenverdrahtung |
-| `sweep_charge.cs` | **Kein Test, ein Stellwerkzeug.** Fährt die Aufladung von 0 bis 1 und meldet, was der Ball tut — nach jeder Änderung an `SwingConfig.asset` laufen lassen |
-| `sweep_serve.cs` | Dasselbe für den Aufschlag, plus die **Wurfrhythmus-Tabelle**: wann losgelassen wird, wo der Ball dann ist, was dabei herauskommt |
+| `verify_swing.cs` | 53 Prüfungen: Zustandsautomat, Trefferurteil, Ziel und Bogen, Ziel-Deadzone, Flug durch die echte Ballsimulation, Netz/Drin/Aus-Bänder, Szenenverdrahtung |
+| `verify_serve.cs` | 85 Prüfungen: Aufschlaggeometrie, Ballwurf, Zustandsautomat, erster/zweiter Aufschlag, Zielsetzung, Flug, Urteil, Rhythmus, Szenenverdrahtung |
+| `sweep_shots.cs` | **Kein Test, ein Stellwerkzeug.** Fährt die Trefferqualität von 0 bis 1 für beide Schläge und alle drei Zonen und meldet, was der Ball tut, plus die Wurfrhythmus-Tabelle. Nach jeder Änderung an `SwingConfig.asset` oder `ServeConfig.asset` laufen lassen |
 | `pose_shot.cs` | Ball für Screenshots eingefroren mitten in den Flug stellen (`SHOT_INDEX`/`STEPS` werden per `sed` ersetzt) |
 | `pose_net_shot.cs` | Dasselbe für einen Netztreffer |
 | `pose_swing.cs` + `pose_swing_freeze.cs` | Stellt Ladebalken und Schlag für Screenshots ein. Streckt die Ladezeit, weil ein CLI-Aufruf sonst länger dauert als die ganze Aufladung; `pose_swing_freeze.cs` gibt sie zurück |
@@ -265,7 +295,7 @@ for f in verify_court verify_ball verify_character verify_swing verify_serve; do
 done
 ```
 
-**Erwartet: 18 / 13 / 21 / 63 / 69 PASS, 0 FAIL** — zusammen 184. Nach jeder Änderung laufen lassen. Neue Mechanik
+**Erwartet: 18 / 13 / 21 / 53 / 85 PASS, 0 FAIL** — zusammen 190. Nach jeder Änderung laufen lassen. Neue Mechanik
 bekommt eine eigene `verify_*.cs`.
 
 ---
@@ -438,6 +468,42 @@ kleine Zahl geteilt durch eine noch kleinere. Ein bequem erreichbarer Ball kam a
 Sekunden zu früh" heraus und wäre als Fehlschlag durchgefallen. `Evaluate` prüft jetzt, ob der
 Ball während eines ganzen Schwungfensters überhaupt weiter reist als der Sweet Spot breit ist;
 wenn nicht, gibt es kein „zu früh" mehr zu messen und es entscheidet allein die Platzierung.
+
+### Steuerungsumbau nach den Spieltests ✅
+
+M4 und M5 waren gebaut, aber nach dem Spielen kam die Rückmeldung: das Aufladen soll weg, und
+die Richtung soll über einen sichtbaren Marker aus drei Bereichen gewählt werden. Vorbild ist
+Robo Tennis von Wavedash.
+
+**Was ersetzt wurde:** Die Aufladung war eine zweite Entscheidung, die gegen die erste getimt
+werden musste — man hielt die Taste für die Tiefe und traf gleichzeitig für die Qualität. Jetzt
+gibt es nur noch die eine Entscheidung, *wann* gedrückt wird, und die Qualität allein bestimmt
+die Tiefe:
+
+| | Grundschlag | Aufschlag |
+|---|---|---|
+| schlechtester Kontakt | 3,0 m hinter dem Netz | 1,2 m hinter dem Netz |
+| perfekter Kontakt | 10,6 m (1,3 m vor der Grundlinie) | 5,6 m (0,8 m vor der Aufschlaglinie) |
+| Netzband | Qualität bis 0,05 an der Grundlinie, bis 0,10 weiter hinten | bis etwa 0,20 |
+
+Ins **Aus** kann ein sauberer Schlag jetzt nicht mehr — das war vorher die Strafe für zu langes
+Halten, und mit dem Aufladen fällt sie weg. Fehler entstehen aus verpasstem Ball, zu schlechtem
+Kontakt (Netz) und aus der Streuung nahe den Linien.
+
+**Die drei Zonen** sind Bahnen quer über die gegnerische Hälfte, beim Aufschlag Bahnen quer
+durchs Aufschlagfeld. `AimZones` rechnet sie aus der `CourtDefinition`, und der Marker zeichnet
+sich aus denselben Zahlen — er kann also nicht anfangen zu lügen, wenn jemand die Tiefen
+verstellt.
+
+**Zwei Funde beim Bauen:**
+
+Der Aufschlag hatte ein **Vorzeichenfehler** in der neuen Zielrechnung: `nominal.z` trägt das
+Vorzeichen des Empfängers bereits, es noch einmal zu negieren zielte *jeden* Aufschlag auf
+0,72 m hinter das Netz. Der Sweep zeigte eine Tabelle aus lauter `n` — ohne ihn wäre das erst
+beim Spielen aufgefallen.
+
+`refresh_assets` **existiert als CLI-Befehl nicht** und schlug die ganze Zeit still fehl (siehe
+Abschnitt 2).
 
 ---
 

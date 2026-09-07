@@ -14,9 +14,9 @@ Vier Festlegungen, die alles andere prägen. Sie sind entschieden, nicht offen:
 | Frage | Entscheidung |
 |---|---|
 | **Perspektive** | Kamera hinter der eigenen Grundlinie, Blick übers Netz |
-| **Schlagmechanik** | Taste halten zum Aufladen, Trefferzeitpunkt bestimmt die Qualität, Richtung über Stick |
+| **Schlagmechanik** | Ein Tastendruck, kein Aufladen. Der Trefferzeitpunkt bestimmt die Qualität, die Qualität die Tiefe. Die Richtung ist eine von drei Zonen, mit eigener Taste gewählt und als Marker sichtbar |
 | **Umfang Teil 1** | Kompletter Satz mit voller Tennis-Zählweise, Aufschlag und Seitenwechsel |
-| **Arcade-Elemente** | Nur Zielmarker am Boden. **Keine** Schlagvarianten, kein Powershot, kein Sprint |
+| **Arcade-Elemente** | Zielmarker am Boden: der Landepunkt des fliegenden Balls **und** die gewählte Zielzone. **Keine** Schlagvarianten, kein Powershot, kein Sprint |
 
 ### Bewusst nicht enthalten
 
@@ -91,9 +91,11 @@ Spielerbewegung wird geklemmt statt simuliert. Unity-Physik würde nur kosten un
 | **M8** | Kamera: Seitenwechsel, Aufschluss-Framing. HUD: Punktestand, Aufschlaganzeige, Ladebalken, Punkt-Einblendungen | Ein Satz ist von Anfang bis Ende spielbar | ⬜ |
 | **M9** | Balancing über ein zentrales Tuning-Asset, Politur, Übergabe an Teil 2 | Spielgefühl sitzt, Prefabs sind assettauschbereit | ⬜ |
 
-**M4 war der Risikoposten** — dort steckt das Spielgefühl. Bevor Regelwerk und KI draufkommen,
-lohnt ein längerer Spieltest mit der Hand am Controller; die Zahlen in `SwingConfig.asset` sind
-genau dafür an einer Stelle gesammelt und ohne Codeänderung verstellbar.
+**M4 war der Risikoposten** — dort steckt das Spielgefühl. Nach den Spieltests wurde die
+Steuerung dort noch einmal umgebaut: das Aufladen ist raus, die Richtung wird aus drei Zonen
+gewählt und ist als Marker sichtbar (siehe [progress.md](progress.md), Abschnitt „Steuerung").
+Die Zahlen stehen in `SwingConfig.asset` und `ServeConfig.asset` und sind ohne Codeänderung
+verstellbar; `Tools/sweep_shots.cs` sagt, was dabei herauskommt.
 
 ### Wichtig für M7
 

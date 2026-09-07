@@ -248,6 +248,35 @@ indicatorSo.FindProperty("fill").objectReferenceValue = barFill.transform;
 indicatorSo.FindProperty("background").objectReferenceValue = barBack.transform;
 indicatorSo.ApplyModifiedPropertiesWithoutUndo();
 
+// --- Aim zone marker ----------------------------------------------------
+// Ring around the chosen zone plus a line to it, drawn from the same numbers
+// the solver aims with. Own root rather than a child of the player: it lives
+// on the far side of the court, not on the character.
+var aimGo = new UnityEngine.GameObject("Aim Zone");
+
+var ringGo2 = new UnityEngine.GameObject("Zone Ring");
+ringGo2.transform.SetParent(aimGo.transform, false);
+ringGo2.AddComponent<UnityEngine.MeshFilter>();
+ringGo2.AddComponent<UnityEngine.MeshRenderer>().sharedMaterial =
+    UnityEditor.AssetDatabase.LoadAssetAtPath<UnityEngine.Material>("Assets/_Game/Materials/Aim_Zone.mat");
+
+var aimLine = makePart("Aim Line", UnityEngine.PrimitiveType.Cube, aimGo.transform,
+    UnityEngine.Vector3.zero, UnityEngine.Vector3.one, "Assets/_Game/Materials/Aim_Zone.mat");
+
+var aimIndicator = aimGo.AddComponent<ArcadeTennis.Presentation.AimZoneIndicator>();
+var aimSo = new UnityEditor.SerializedObject(aimIndicator);
+aimSo.FindProperty("character").objectReferenceValue = player;
+aimSo.FindProperty("swing").objectReferenceValue =
+    player.GetComponent<ArcadeTennis.Characters.SwingController>();
+aimSo.FindProperty("serve").objectReferenceValue =
+    player.GetComponent<ArcadeTennis.Characters.ServeController>();
+aimSo.FindProperty("court").objectReferenceValue = courtDef;
+aimSo.FindProperty("swingConfig").objectReferenceValue = swingConfig;
+aimSo.FindProperty("serveConfig").objectReferenceValue = serveConfig;
+aimSo.FindProperty("ring").objectReferenceValue = ringGo2.transform;
+aimSo.FindProperty("line").objectReferenceValue = aimLine.transform;
+aimSo.ApplyModifiedPropertiesWithoutUndo();
+
 // --- Serve practice driver (milestone 5 rig) ---------------------------
 // Decides only when the next serve happens. The rule engine in milestone 6
 // takes that over and this goes.

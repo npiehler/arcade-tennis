@@ -1,6 +1,6 @@
-// Milestone 4 verification. The stroke is built out of pure functions -- the
-// state machine, the contact judgement and the target -- so all of this runs in
-// edit mode with no timing races and no play mode.
+// Verification for the rally stroke. Everything it is built from is a pure
+// function, so all of this runs in edit mode with no timing races and no play
+// mode.
 var court = UnityEditor.AssetDatabase.LoadAssetAtPath<ArcadeTennis.Court.CourtDefinition>(
     "Assets/_Game/Settings/CourtDefinition.asset");
 var charCfg = UnityEditor.AssetDatabase.LoadAssetAtPath<ArcadeTennis.Characters.CharacterConfig>(
@@ -21,91 +21,82 @@ System.Action<string, bool> check = (label, ok) => {
 };
 
 // =========================================================================
-// State machine
+// State machine: one press, one stroke
 // =========================================================================
 var idle = new ArcadeTennis.Characters.SwingState();
 bool due;
 for (int i = 0; i < 50; i++)
     ArcadeTennis.Characters.SwingSolver.Tick(ref idle, false, cfg, dt, out due);
 check("an untouched button leaves the stroke idle",
-    idle.Phase == ArcadeTennis.Characters.SwingPhase.Idle && idle.Charge == 0f);
+    idle.Phase == ArcadeTennis.Characters.SwingPhase.Idle);
 
-// Holds for a number of ticks, then reports where the charge got to.
-System.Func<int, ArcadeTennis.Characters.SwingState> hold = (ticks) => {
+// Runs a button pattern and reports what happened.
+System.Func<bool[], int> strokesIn = (pattern) => {
     var st = new ArcadeTennis.Characters.SwingState();
+    int count = 0;
     bool d;
-    for (int i = 0; i < ticks; i++)
-        ArcadeTennis.Characters.SwingSolver.Tick(ref st, true, cfg, dt, out d);
-    return st;
+    foreach (bool held in pattern)
+    {
+        ArcadeTennis.Characters.SwingSolver.Tick(ref st, held, cfg, dt, out d);
+        if (d) count++;
+    }
+    return count;
 };
 
-var pressed = hold(1);
-check("pressing the button starts charging",
-    pressed.Phase == ArcadeTennis.Characters.SwingPhase.Charging);
+var held200 = new bool[200];
+for (int i = 0; i < held200.Length; i++) held200[i] = true;
+check("holding the button down fires exactly one stroke, not a stream",
+    strokesIn(held200) == 1);
 
-// One extra tick because the press itself only enters the charging phase.
-int fullTicks = 1 + UnityEngine.Mathf.RoundToInt(cfg.ChargeTime / dt);
-var charged = hold(fullTicks);
-check("charge reaches full after the configured charge time", charged.Charge > 0.999f);
+// Press, release, press again once the stroke is over.
+int strokeTicks = UnityEngine.Mathf.CeilToInt((cfg.SwingDuration + cfg.RecoverDuration) / dt) + 4;
+var twoTaps = new bool[strokeTicks * 2];
+twoTaps[0] = true;
+twoTaps[strokeTicks] = true;
+check("two taps either side of the recovery fire two strokes", strokesIn(twoTaps) == 2);
 
-var halfway = hold(1 + UnityEngine.Mathf.RoundToInt(cfg.ChargeTime / dt / 2f));
-check("charge builds evenly over that time",
-    UnityEngine.Mathf.Abs(halfway.Charge - 0.5f) < 0.02f);
+// A tap during the recovery must be swallowed.
+var tapDuringRecovery = new bool[strokeTicks * 2];
+tapDuringRecovery[0] = true;
+tapDuringRecovery[UnityEngine.Mathf.CeilToInt(cfg.SwingDuration / dt) + 1] = true;
+check("a tap during the recovery is ignored", strokesIn(tapDuringRecovery) == 1);
 
-var overCharged = hold(fullTicks + 60);
-check("charge does not grow past full", overCharged.Charge <= 1f + 1e-5f);
-
-var tapped = hold(1);
-check("a bare tap carries next to no power", tapped.Power(cfg) < 0.05f);
-check("a full hold carries full power", charged.Power(cfg) > 0.999f);
-
-// Runs a whole stroke: hold, release, then idle input until it settles.
-var run = hold(fullTicks);
-int contactCount = 0;
-int ticksToContact = -1;
-int ticksToIdle = -1;
-var phaseAfterContact = ArcadeTennis.Characters.SwingPhase.Idle;
+var run = new ArcadeTennis.Characters.SwingState();
+int contactTicks = -1, idleTicks = -1, contacts = 0;
+var phaseAtContact = ArcadeTennis.Characters.SwingPhase.Idle;
 for (int i = 1; i <= 200; i++)
 {
-    ArcadeTennis.Characters.SwingSolver.Tick(ref run, false, cfg, dt, out due);
+    ArcadeTennis.Characters.SwingSolver.Tick(ref run, i == 1, cfg, dt, out due);
     if (due)
     {
-        contactCount++;
-        if (ticksToContact < 0) ticksToContact = i;
-        phaseAfterContact = run.Phase;
+        contacts++;
+        if (contactTicks < 0) contactTicks = i;
+        phaseAtContact = run.Phase;
     }
-    if (ticksToIdle < 0 && ticksToContact > 0
-        && run.Phase == ArcadeTennis.Characters.SwingPhase.Idle) ticksToIdle = i;
+    if (idleTicks < 0 && contactTicks > 0
+        && run.Phase == ArcadeTennis.Characters.SwingPhase.Idle) idleTicks = i;
 }
-
-check("releasing the button swings exactly once", contactCount == 1);
-// The release tick only enters the swing; the swing clock starts on the
-// tick after, so one tick comes off the measurement.
-float swingElapsed = (ticksToContact - 1) * dt;
+check("a single press swings exactly once", contacts == 1);
+// The press tick only enters the swing; the swing clock starts on the tick
+// after it, so one tick comes off the measurement.
+float swingElapsed = (contactTicks - 1) * dt;
 check("contact happens after the configured delay, not at once",
-    ticksToContact > 0
+    contactTicks > 0
     && swingElapsed >= cfg.ContactDelay - 1e-6f
     && swingElapsed < cfg.ContactDelay + dt + 1e-6f);
 check("the racket is still mid-swing at the moment of contact",
-    phaseAfterContact == ArcadeTennis.Characters.SwingPhase.Swinging);
+    phaseAtContact == ArcadeTennis.Characters.SwingPhase.Swinging);
 check("the stroke returns to idle on its own",
-    run.Phase == ArcadeTennis.Characters.SwingPhase.Idle && run.Charge == 0f);
+    run.Phase == ArcadeTennis.Characters.SwingPhase.Idle);
 check("swing and recovery together take the configured time",
-    ticksToIdle > 0
-    && UnityEngine.Mathf.Abs(ticksToIdle * dt - (cfg.SwingDuration + cfg.RecoverDuration)) < 3f * dt);
-
-// A player who never lets go never swings: holding at full charge is a wait,
-// not an auto-release.
-var stillHolding = hold(fullTicks + 200);
-check("holding at full charge waits instead of firing",
-    stillHolding.Phase == ArcadeTennis.Characters.SwingPhase.Charging);
+    idleTicks > 0
+    && UnityEngine.Mathf.Abs(idleTicks * dt - (cfg.SwingDuration + cfg.RecoverDuration)) < 3f * dt);
 
 // =========================================================================
 // Contact judgement
 // =========================================================================
 var hitCentre = new UnityEngine.Vector3(0f, charCfg.HitHeight, -11f);
-var incoming = new UnityEngine.Vector3(0f, 0f, -20f);   // ball running at the near player
-
+var incoming = new UnityEngine.Vector3(0f, 0f, -20f);
 var tuning = cfg.Contact(reach);
 
 System.Func<UnityEngine.Vector3, ArcadeTennis.Characters.SwingContact> meet = (offset) =>
@@ -116,259 +107,202 @@ var dead = meet(new UnityEngine.Vector3(0f, 0f, 1.0f));
 check("a ball on line and on time grades Perfect",
     dead.Made && dead.Grade == ArcadeTennis.Characters.SwingGrade.Perfect);
 check("that contact reports no miss distance", dead.MissDistance < 0.001f);
-
-var wide = meet(new UnityEngine.Vector3(3f, 0f, 1.0f));
-check("a ball out of reach is a miss",
-    !wide.Made && wide.Grade == ArcadeTennis.Characters.SwingGrade.Miss);
+check("a ball out of reach is a miss", !meet(new UnityEngine.Vector3(3f, 0f, 1.0f)).Made);
 
 var early = meet(new UnityEngine.Vector3(0f, 0f, 2.4f));
 check("swinging before the ball arrives reads Early",
-    early.Made && early.Grade == ArcadeTennis.Characters.SwingGrade.Early);
-check("an early swing has a negative timing offset", early.TimingOffset < 0f);
+    early.Made && early.Grade == ArcadeTennis.Characters.SwingGrade.Early
+    && early.TimingOffset < 0f);
 
 var late = meet(new UnityEngine.Vector3(0f, 0f, -2.4f));
 check("swinging after the ball has gone by reads Late",
-    late.Made && late.Grade == ArcadeTennis.Characters.SwingGrade.Late);
-check("a late swing has a positive timing offset", late.TimingOffset > 0f);
+    late.Made && late.Grade == ArcadeTennis.Characters.SwingGrade.Late
+    && late.TimingOffset > 0f);
 
-var tooEarly = meet(new UnityEngine.Vector3(0f, 0f, 5f));
-check("timing beyond the window misses even on a perfect line", !tooEarly.Made);
+check("timing beyond the window misses even on a perfect line",
+    !meet(new UnityEngine.Vector3(0f, 0f, 5f)).Made);
 
-// Quality has to fall off with distance, not step.
 float previousQuality = 2f;
 bool monotonic = true;
 for (float d = 0f; d <= 1.2f; d += 0.15f)
 {
-    var q = meet(new UnityEngine.Vector3(d, 0f, 1.0f)).Quality;
+    float q = meet(new UnityEngine.Vector3(d, 0f, 1.0f)).Quality;
     if (q > previousQuality + 1e-5f) monotonic = false;
     previousQuality = q;
 }
 check("quality falls as the ball passes further from the sweet spot", monotonic);
 
-var still = ArcadeTennis.Characters.SwingSolver.Evaluate(
-    hitCentre + new UnityEngine.Vector3(0.3f, 0f, 0f), UnityEngine.Vector3.zero,
-    hitCentre, UnityEngine.Vector3.zero, tuning);
-check("a motionless ball inside the reach can still be struck", still.Made);
+check("a motionless ball inside the reach can still be struck",
+    ArcadeTennis.Characters.SwingSolver.Evaluate(
+        hitCentre + new UnityEngine.Vector3(0.3f, 0f, 0f), UnityEngine.Vector3.zero,
+        hitCentre, UnityEngine.Vector3.zero, tuning).Made);
 
-// The racket moving with the ball is what a running player does; judging
-// against the relative path is the whole point of the closed form.
 var chasing = ArcadeTennis.Characters.SwingSolver.Evaluate(
     hitCentre + new UnityEngine.Vector3(0f, 0f, 3.6f), incoming,
     hitCentre, new UnityEngine.Vector3(0f, 0f, 6f), tuning);
-var planted = meet(new UnityEngine.Vector3(0f, 0f, 3.6f));
 check("running towards the ball buys timing a standing player does not have",
-    chasing.Made && !planted.Made);
+    chasing.Made && !meet(new UnityEngine.Vector3(0f, 0f, 3.6f)).Made);
 
 // =========================================================================
-// Target and arc
+// The three zones
+// =========================================================================
+float laneHalf = ArcadeTennis.Court.AimZones.LaneHalfWidth(court);
+float left = ArcadeTennis.Court.AimZones.LaneCentre(court, -1, ArcadeTennis.Court.AimZone.Left);
+float centre = ArcadeTennis.Court.AimZones.LaneCentre(court, -1, ArcadeTennis.Court.AimZone.Centre);
+float right = ArcadeTennis.Court.AimZones.LaneCentre(court, -1, ArcadeTennis.Court.AimZone.Right);
+
+check("three lanes span the court, evenly spaced", left < centre && centre < right
+    && UnityEngine.Mathf.Abs((centre - left) - (right - centre)) < 0.001f);
+check("the middle lane is the middle of the court", UnityEngine.Mathf.Abs(centre) < 0.001f);
+check("every lane lies inside the singles court",
+    UnityEngine.Mathf.Abs(left) + laneHalf <= court.SinglesHalfWidth + 0.001f);
+check("the lanes are mirrored for the far player",
+    ArcadeTennis.Court.AimZones.LaneCentre(court, 1, ArcadeTennis.Court.AimZone.Right) < 0f);
+
+check("a stick pushed left picks the left lane",
+    ArcadeTennis.Court.AimZones.FromInput(-1f, ArcadeTennis.Court.AimZone.Centre)
+        == ArcadeTennis.Court.AimZone.Left);
+check("a stick pushed right picks the right lane",
+    ArcadeTennis.Court.AimZones.FromInput(1f, ArcadeTennis.Court.AimZone.Centre)
+        == ArcadeTennis.Court.AimZone.Right);
+check("a resting stick keeps whatever it was given as the resting choice",
+    ArcadeTennis.Court.AimZones.FromInput(0.2f, ArcadeTennis.Court.AimZone.Centre)
+        == ArcadeTennis.Court.AimZone.Centre);
+check("stepping past the outside lane stays there",
+    ArcadeTennis.Court.AimZones.Step(ArcadeTennis.Court.AimZone.Right, 1)
+        == ArcadeTennis.Court.AimZone.Right);
+
+// =========================================================================
+// Where the ball is sent
 // =========================================================================
 var perfect = new ArcadeTennis.Characters.SwingContact { Made = true, Quality = 1f };
 var sloppy = new ArcadeTennis.Characters.SwingContact { Made = true, Quality = 0.15f };
 var noSpread = UnityEngine.Vector2.zero;
 
-System.Func<int, float, UnityEngine.Vector2, ArcadeTennis.Characters.SwingContact,
+System.Func<int, ArcadeTennis.Court.AimZone, ArcadeTennis.Characters.SwingContact,
             UnityEngine.Vector2, UnityEngine.Vector3> aimAt =
-    (side, power, aim, contact, spread) =>
-        ArcadeTennis.Characters.SwingSolver.ResolveTarget(side, power, aim, contact, cfg, court, spread);
+    (side, zone, contact, spread) =>
+        ArcadeTennis.Characters.SwingSolver.ResolveTarget(side, zone, contact, cfg, court, spread);
 
-var deepShot = aimAt(-1, 1f, UnityEngine.Vector2.zero, perfect, noSpread);
-var shortShot = aimAt(-1, 0f, UnityEngine.Vector2.zero, perfect, noSpread);
-var midShot = aimAt(-1, 0.55f, UnityEngine.Vector2.zero, perfect, noSpread);
-check("a full charge aims deeper than a tap", deepShot.z > shortShot.z + 3f);
-check("a full charge is aimed past the baseline, not safely inside it",
-    deepShot.z > court.HalfLength && !court.IsInBounds(deepShot));
-check("a tap is aimed at the foot of the net", shortShot.z < 1.0f);
-check("a middling charge is aimed inside the court", court.IsInBounds(midShot));
+var deep = aimAt(-1, ArcadeTennis.Court.AimZone.Centre, perfect, noSpread);
+var shallow = aimAt(-1, ArcadeTennis.Court.AimZone.Centre, sloppy, noSpread);
+check("clean contact is sent deeper than poor contact", deep.z > shallow.z + 3f);
+check("a clean stroke lands inside the court", court.IsInBounds(deep) && deep.z > 0f);
+check("with the charge gone, even the cleanest stroke stays inside the baseline",
+    deep.z < court.HalfLength);
 
-var weakShot = aimAt(-1, 1f, UnityEngine.Vector2.zero, sloppy, noSpread);
-check("poor contact lands shorter than clean contact at the same charge",
-    weakShot.z < deepShot.z - 1f);
+var leftShot = aimAt(-1, ArcadeTennis.Court.AimZone.Left, perfect, noSpread);
+var rightShot = aimAt(-1, ArcadeTennis.Court.AimZone.Right, perfect, noSpread);
+check("the left lane sends the ball left", leftShot.x < -2f);
+check("the right lane sends the ball right", rightShot.x > 2f);
+check("the middle lane sends it down the middle", UnityEngine.Mathf.Abs(deep.x) < 0.2f);
+check("both outside lanes still land in",
+    court.IsInBounds(leftShot) && court.IsInBounds(rightShot));
 
-var rightNear = aimAt(-1, 0.55f, new UnityEngine.Vector2(1f, 0f), perfect, noSpread);
-var rightFar = aimAt(1, 0.55f, new UnityEngine.Vector2(1f, 0f), perfect, noSpread);
-check("aiming right sends the near player's ball to +x", rightNear.x > 2f);
-check("aiming right is mirrored for the far player", rightFar.x < -2f);
-check("the near player hits into the far half", rightNear.z > 0f);
-check("the far player hits into the near half", rightFar.z < 0f);
-check("a wide clean shot still lands in", court.IsInBounds(rightNear));
+var rightFar = aimAt(1, ArcadeTennis.Court.AimZone.Right, perfect, noSpread);
+check("the far player's right is right on screen too", rightFar.x < -2f && rightFar.z < 0f);
 
-// --- aim deadzone ---------------------------------------------------
-// The stroke borrows the movement deadzone rather than keeping its own, so
-// that "standing still" means one thing and not two.
-float deadzone = charCfg.InputDeadzone;
-
-var idleStick = new UnityEngine.Vector2(deadzone * 0.6f, deadzone * 0.4f);
-check("aim inside the movement deadzone is discarded",
-    ArcadeTennis.Characters.SwingSolver.ApplyAimDeadzone(idleStick, deadzone)
-        == UnityEngine.Vector2.zero);
-
-var realPush = new UnityEngine.Vector2(0.8f, 0f);
-check("aim outside the deadzone is passed through untouched",
-    ArcadeTennis.Characters.SwingSolver.ApplyAimDeadzone(realPush, deadzone) == realPush);
-
-// The effect that matters: a resting stick must not pull the ball off centre.
-var driftTarget = aimAt(-1, 0.55f,
-    ArcadeTennis.Characters.SwingSolver.ApplyAimDeadzone(idleStick, deadzone),
-    perfect, noSpread);
-check("a resting stick aims straight down the middle",
-    UnityEngine.Mathf.Abs(driftTarget.x) < 0.001f);
-
-// Without the deadzone that same stick would have moved the target by an
-// amount a player can see, which is why this check exists at all.
-var undamped = aimAt(-1, 0.55f, idleStick, perfect, noSpread);
-check("the deadzone is doing real work, not rounding noise",
-    UnityEngine.Mathf.Abs(undamped.x) > 0.2f);
-
-// --- how far a full sideways aim reaches ----------------------------
-// The keyboard only ever gives a full press, so the widest aim has to stay
-// a shot a player can rely on when they strike it cleanly.
-float widestPerfect = 0f;
-for (int i = 0; i < 64; i++)
-{
-    float a = i / 64f * UnityEngine.Mathf.PI * 2f;
-    var spread = new UnityEngine.Vector2(UnityEngine.Mathf.Cos(a), UnityEngine.Mathf.Sin(a));
-    var t = aimAt(-1, 0.55f, new UnityEngine.Vector2(1f, 0f), perfect, spread);
-    widestPerfect = UnityEngine.Mathf.Max(widestPerfect, UnityEngine.Mathf.Abs(t.x));
-}
-check("a flawless full-width aim stays inside the sideline",
-    widestPerfect <= court.SinglesHalfWidth + court.LineWidth * 0.5f);
-check("but it does reach for the line, not the middle of the court",
-    widestPerfect > court.SinglesHalfWidth * 0.9f);
-
-var edgeSpread = new UnityEngine.Vector2(1f, 0f);
-float cleanScatter = UnityEngine.Mathf.Abs(
-    aimAt(-1, 1f, UnityEngine.Vector2.zero, perfect, edgeSpread).x);
-float sloppyScatter = UnityEngine.Mathf.Abs(
-    aimAt(-1, 1f, UnityEngine.Vector2.zero, sloppy, edgeSpread).x);
-check("clean contact scatters less than poor contact", cleanScatter < sloppyScatter * 0.3f);
-check("even flawless contact scatters a little", cleanScatter > 0.01f);
-
-// --- the aim has to survive the spread ------------------------------
-// Sideways slip is held far below length error on purpose: a shot that lands
-// short reads as the player's own mistiming, but one that ignores the
-// direction they asked for reads as a broken game. These pin that down.
-float worstCentre = 0f;
-float nearestLeft = 99f;
-float worstDepthSlip = 0f;
+// The aim has to survive the spread: sideways slip is held far below length
+// error, because a shot that ignores the chosen zone reads as a broken game.
+float worstCentre = 0f, nearestLeft = 99f, worstDepthSlip = 0f;
+bool onPremises = true;
+float maxX = court.SinglesHalfWidth + cfg.OutMargin;
+float maxZ = court.HalfLength + cfg.OutMargin;
 
 for (float q = 0f; q <= 1.0001f; q += 0.1f)
 {
     var judged = new ArcadeTennis.Characters.SwingContact { Made = true, Quality = q };
+    var nominal = aimAt(-1, ArcadeTennis.Court.AimZone.Centre, judged, noSpread);
+
     for (int i = 0; i < 64; i++)
     {
         float a = i / 64f * UnityEngine.Mathf.PI * 2f;
         var spread = new UnityEngine.Vector2(UnityEngine.Mathf.Cos(a), UnityEngine.Mathf.Sin(a));
 
-        var centred = aimAt(-1, 0.55f, UnityEngine.Vector2.zero, judged, spread);
-        var leftward = aimAt(-1, 0.55f, new UnityEngine.Vector2(-1f, 0f), judged, spread);
-        var nominalDepth = aimAt(-1, 0.55f, UnityEngine.Vector2.zero, judged, UnityEngine.Vector2.zero);
+        var centred = aimAt(-1, ArcadeTennis.Court.AimZone.Centre, judged, spread);
+        var leftward = aimAt(-1, ArcadeTennis.Court.AimZone.Left, judged, spread);
 
         worstCentre = UnityEngine.Mathf.Max(worstCentre, UnityEngine.Mathf.Abs(centred.x));
         nearestLeft = UnityEngine.Mathf.Min(nearestLeft, UnityEngine.Mathf.Abs(leftward.x));
         worstDepthSlip = UnityEngine.Mathf.Max(worstDepthSlip,
-            UnityEngine.Mathf.Abs(centred.z - nominalDepth.z));
+            UnityEngine.Mathf.Abs(centred.z - nominal.z));
+
+        if (UnityEngine.Mathf.Abs(centred.x) > maxX + 1e-4f
+            || UnityEngine.Mathf.Abs(centred.z) > maxZ + 1e-4f) onPremises = false;
     }
 }
-
-check("with no direction pressed the ball goes essentially straight, at any contact quality",
-    worstCentre < 1.0f);
-check("aiming sideways never lands where not aiming could have",
-    nearestLeft > worstCentre);
+check("the middle lane goes essentially straight at any contact quality", worstCentre < 1.0f);
+check("an outside lane never lands where the middle one could have", nearestLeft > worstCentre);
 check("length is punished harder than direction", worstDepthSlip > worstCentre * 2f);
+check("no amount of spread aims a ball off the premises", onPremises);
 
-float maxX = court.SinglesHalfWidth + cfg.OutMargin;
-float maxZ = court.HalfLength + cfg.OutMargin;
-bool clamped = true;
-for (int i = 0; i < 64; i++)
-{
-    float a = i / 64f * UnityEngine.Mathf.PI * 2f;
-    var spread = new UnityEngine.Vector2(UnityEngine.Mathf.Cos(a), UnityEngine.Mathf.Sin(a));
-    var t = aimAt(-1, 1f, new UnityEngine.Vector2(1f, 0f), sloppy, spread);
-    if (UnityEngine.Mathf.Abs(t.x) > maxX + 1e-4f || UnityEngine.Mathf.Abs(t.z) > maxZ + 1e-4f)
-        clamped = false;
-}
-check("no amount of spread aims a ball off the premises", clamped);
-
+// =========================================================================
+// Arc and flight, through the real ball simulation
+// =========================================================================
 var high = new UnityEngine.Vector3(0f, 1f, -11f);
-float apexWeak = ArcadeTennis.Characters.SwingSolver.ResolveApex(0f, perfect, high, cfg);
-float apexFull = ArcadeTennis.Characters.SwingSolver.ResolveApex(1f, perfect, high, cfg);
-check("power lifts the arc; a weak shot is barely raised", apexFull > apexWeak);
+check("clean contact lifts the arc",
+    ArcadeTennis.Characters.SwingSolver.ResolveApex(perfect, high, cfg)
+        > ArcadeTennis.Characters.SwingSolver.ResolveApex(sloppy, high, cfg));
 
 var low = new UnityEngine.Vector3(0f, 0.08f, -11f);
-float apexLowFull = ArcadeTennis.Characters.SwingSolver.ResolveApex(1f, perfect, low, cfg);
-check("a full swing off the ground is still given an arc that can clear the net",
-    apexLowFull + low.y >= cfg.MinPeakHeight - 1e-4f);
+check("a clean stroke off the ground is still given an arc that can clear the net",
+    ArcadeTennis.Characters.SwingSolver.ResolveApex(perfect, low, cfg) + low.y
+        >= cfg.MinPeakHeight - 1e-4f);
+check("a mistimed scoop off the ground gets no such guarantee",
+    ArcadeTennis.Characters.SwingSolver.ResolveApex(
+        new ArcadeTennis.Characters.SwingContact { Made = true, Quality = 0f }, low, cfg) + low.y
+        < cfg.MinPeakHeight - 0.1f);
 
-// The counterpart: that guarantee is earned by the swing, not handed out. A
-// stab off the ground has to be allowed to fail.
-float apexLowWeak = ArcadeTennis.Characters.SwingSolver.ResolveApex(0f, perfect, low, cfg);
-check("a weak scoop off the ground gets no such guarantee",
-    apexLowWeak + low.y < cfg.MinPeakHeight - 0.1f);
-
-// =========================================================================
-// End to end, through the real ball simulation
-// =========================================================================
-System.Func<UnityEngine.Vector3, UnityEngine.Vector3, float, ArcadeTennis.BallPhysics.BallPrediction> playOut =
-    (from, target, apex) =>
+System.Func<UnityEngine.Vector3, float, ArcadeTennis.Court.AimZone,
+            ArcadeTennis.BallPhysics.BallPrediction> playOut =
+    (from, quality, zone) =>
     {
+        var judged = new ArcadeTennis.Characters.SwingContact { Made = true, Quality = quality };
+        var target = aimAt(-1, zone, judged, noSpread);
         var v = ArcadeTennis.BallPhysics.BallSimulation.SolveLaunchVelocity(
-            from, target, apex, ballCfg, court, dt);
+            from, target, ArcadeTennis.Characters.SwingSolver.ResolveApex(judged, from, cfg),
+            ballCfg, court, dt);
         return ArcadeTennis.BallPhysics.BallSimulation.Predict(
             new ArcadeTennis.BallPhysics.BallState(from, v), ballCfg, court, dt);
     };
 
 var contactPoint = new UnityEngine.Vector3(0f, charCfg.HitHeight, -11f);
-var driveTarget = aimAt(-1, 0.55f, UnityEngine.Vector2.zero, perfect, noSpread);
-var drive = playOut(contactPoint, driveTarget,
-    ArcadeTennis.Characters.SwingSolver.ResolveApex(0.55f, perfect, contactPoint, cfg));
-
-check("a clean drive clears the net", drive.IsBounce);
-check("a clean drive lands in the opponent's court",
+var drive = playOut(contactPoint, 1f, ArcadeTennis.Court.AimZone.Centre);
+check("a clean drive clears the net and lands in",
     drive.IsBounce && court.IsInBounds(drive.Position) && drive.Position.z > 0f);
-check("it lands where it was aimed",
-    drive.HasResult && UnityEngine.Vector3.Distance(
-        new UnityEngine.Vector3(drive.Position.x, 0f, drive.Position.z), driveTarget) < 0.25f);
+check("it lands where it was aimed", drive.HasResult
+    && UnityEngine.Vector3.Distance(new UnityEngine.Vector3(drive.Position.x, 0f, drive.Position.z),
+        aimAt(-1, ArcadeTennis.Court.AimZone.Centre, perfect, noSpread)) < 0.25f);
 
-var wideTarget = aimAt(-1, 0.55f, new UnityEngine.Vector2(1f, 0f), perfect, noSpread);
-var wideDrive = playOut(contactPoint, wideTarget,
-    ArcadeTennis.Characters.SwingSolver.ResolveApex(0.55f, perfect, contactPoint, cfg));
-check("a wide drive also clears the net and lands in",
-    wideDrive.IsBounce && court.IsInBounds(wideDrive.Position) && wideDrive.Position.x > 2f);
+var wideDrive = playOut(contactPoint, 1f, ArcadeTennis.Court.AimZone.Left);
+check("a clean drive into the left lane also lands in",
+    wideDrive.IsBounce && court.IsInBounds(wideDrive.Position) && wideDrive.Position.x < -2f);
 
-// The ball met at ankle height is the case the arc floor exists for.
-var lowContact = new UnityEngine.Vector3(0f, 0.10f, -11f);
-var lowDrive = playOut(lowContact, aimAt(-1, 1f, UnityEngine.Vector2.zero, perfect, noSpread),
-    ArcadeTennis.Characters.SwingSolver.ResolveApex(1f, perfect, lowContact, cfg));
-check("a ball hit hard off the ground still gets over the net", !lowDrive.IsNetHit);
-
-// ---------------------------------------------------------------------
-// The charge has to be able to lose the point at both ends. This is the
-// check that would have caught the first tuning, where every clean shot
-// landed in however long the button was held.
+// The band the player will feel: badly met balls drop, well met balls land deep.
 var bands = new System.Text.StringBuilder();
-int netBand = 0, inBand = 0, outBand = 0, previousBand = 0;
+int net = 0, inCourt = 0, previous = 0;
 bool ordered = true;
-
-for (float power = 0f; power <= 1.0001f; power += 0.05f)
+for (float q = 0f; q <= 1.0001f; q += 0.05f)
 {
-    var t = aimAt(-1, power, UnityEngine.Vector2.zero, perfect, noSpread);
-    var shot = playOut(contactPoint, t,
-        ArcadeTennis.Characters.SwingSolver.ResolveApex(power, perfect, contactPoint, cfg));
-
+    var shot = playOut(contactPoint, q, ArcadeTennis.Court.AimZone.Centre);
     int band = shot.IsNetHit ? 0
-             : (shot.IsBounce && court.IsInBounds(shot.Position) && shot.Position.z > 0f ? 1 : 2);
-
-    if (band < previousBand) ordered = false;
-    previousBand = band;
-
-    if (band == 0) netBand++; else if (band == 1) inBand++; else outBand++;
-    bands.Append(band == 0 ? "n" : (band == 1 ? "." : "o"));
+        : (shot.IsBounce && court.IsInBounds(shot.Position) && shot.Position.z > 0f ? 1 : 2);
+    if (band < previous) ordered = false;
+    previous = band;
+    if (band == 0) net++; else if (band == 1) inCourt++;
+    bands.Append(band == 0 ? "n" : band == 1 ? "." : "o");
 }
+check("the worst contact that connects still drops into the net [" + bands + "]", net >= 1);
+check("nearly the whole quality range is playable", inCourt >= 17);
+check("net first, then in: the outcomes do not interleave", ordered);
 
-check("too little charge drops the ball into the net [" + bands + "]", netBand >= 2);
-check("too much charge sends the ball past the baseline", outBand >= 2);
-check("most of the charge range is still playable", inBand >= 10);
-check("the outcomes come in order: net, then in, then out", ordered);
+// Deeper court positions ask more of the contact, which is what makes standing
+// in a sensible place worth something.
+var deepStand = new UnityEngine.Vector3(0f, charCfg.HitHeight, -13.5f);
+int netFromDeep = 0;
+for (float q = 0f; q <= 1.0001f; q += 0.05f)
+    if (playOut(deepStand, q, ArcadeTennis.Court.AimZone.Centre).IsNetHit) netFromDeep++;
+check("hitting from further back is harder, not the same", netFromDeep >= net);
 
 // =========================================================================
 // Scene wiring
@@ -386,19 +320,6 @@ foreach (var s in swingers)
 }
 check("every swing controller has its tuning and the ball", wired);
 
-var indicator = UnityEngine.Object.FindFirstObjectByType<ArcadeTennis.Presentation.SwingIndicator>();
-bool indicatorWired = indicator != null;
-if (indicatorWired)
-{
-    var iso = new UnityEditor.SerializedObject(indicator);
-    indicatorWired = iso.FindProperty("swing").objectReferenceValue != null
-                  && iso.FindProperty("fill").objectReferenceValue != null
-                  && iso.FindProperty("character").objectReferenceValue != null;
-}
-check("the charge bar exists and is wired to the player", indicatorWired);
-
-// The rally stroke has to stand down while the serve owns the ball, or it
-// would swing at a ball still going up off its own side's toss.
 var playerSwing = UnityEngine.Object.FindFirstObjectByType<ArcadeTennis.Characters.SwingController>();
 bool standsDown = false;
 if (playerSwing != null)
@@ -409,18 +330,29 @@ if (playerSwing != null)
 }
 check("the rally stroke can be held back for the serve", standsDown);
 
+var marker = UnityEngine.Object.FindFirstObjectByType<ArcadeTennis.Presentation.AimZoneIndicator>();
+bool markerWired = marker != null;
+if (markerWired)
+{
+    var mso = new UnityEditor.SerializedObject(marker);
+    foreach (var field in new string[] { "character", "swing", "serve", "court",
+                                         "swingConfig", "serveConfig", "ring", "line" })
+        if (mso.FindProperty(field).objectReferenceValue == null) markerWired = false;
+}
+check("the target zone marker exists and is fully wired", markerWired);
+
 var input = UnityEngine.Object.FindFirstObjectByType<ArcadeTennis.Characters.PlayerInputController>();
-bool swingBound = false;
+bool aimBound = false;
 if (input != null)
 {
-    var iso = new UnityEditor.SerializedObject(input);
-    var asset = iso.FindProperty("controls").objectReferenceValue
+    var asset = new UnityEditor.SerializedObject(input).FindProperty("controls").objectReferenceValue
         as UnityEngine.InputSystem.InputActionAsset;
-    swingBound = asset != null
-        && asset.FindActionMap("Match", false) != null
-        && asset.FindActionMap("Match", false).FindAction("Swing", false) != null;
+    var map = asset != null ? asset.FindActionMap("Match", false) : null;
+    aimBound = map != null && map.FindAction("Aim", false) != null
+                           && map.FindAction("Move", false) != null
+                           && map.FindAction("Swing", false) != null;
 }
-check("the player's input asset carries a Swing action", swingBound);
+check("aiming has its own action, separate from moving", aimBound);
 
 sb.AppendLine(failed == 0 ? "ALL CHECKS PASSED" : failed + " CHECK(S) FAILED");
 return sb.ToString();

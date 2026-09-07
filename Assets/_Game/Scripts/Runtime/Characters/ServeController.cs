@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 using ArcadeTennis.BallPhysics;
+using ArcadeTennis.Court;
 
 namespace ArcadeTennis.Characters
 {
@@ -27,7 +28,7 @@ namespace ArcadeTennis.Characters
 
         TennisCharacter character;
         ServeState serve = ServeState.New();
-        Vector2 aim;
+        AimZone zone = AimZone.Centre;
         bool holding;
         bool awaitingVerdict;
 
@@ -42,11 +43,13 @@ namespace ArcadeTennis.Characters
 
         public ServeConfig Config => config;
         public ServePhase Phase => serve.Phase;
-        public float Charge => serve.Charge;
         public int ServeNumber => serve.ServeNumber;
         public bool DeuceCourt => serve.DeuceCourt;
         public bool IsServing => serve.Phase != ServePhase.Struck;
-        public bool IsCharging => serve.Phase == ServePhase.Tossing;
+        public bool IsTossing => serve.Phase == ServePhase.Tossing;
+
+        /// <summary>Which of the three lanes inside the box the serve is aimed at.</summary>
+        public AimZone Zone => zone;
         public SwingContact LastContact { get; private set; }
         public Vector3 LastTarget { get; private set; }
 
@@ -76,7 +79,9 @@ namespace ArcadeTennis.Characters
         }
 
         public void SetSwingHeld(bool held) => holding = held;
-        public void SetAim(Vector2 value) => aim = value;
+
+        /// <summary>Picks the lane inside the service box the serve is sent to.</summary>
+        public void SetZone(AimZone value) => zone = value;
 
         /// <summary>Starts the next point: first serve, other court, server on the line.</summary>
         public void NextPoint()
@@ -142,13 +147,11 @@ namespace ArcadeTennis.Characters
                 return;
             }
 
-            float power = serve.Charge;
-
             LastTarget = ServeSolver.ResolveTarget(
-                character.Side, serve.DeuceCourt, power, aim, contact, config, character.Court,
+                character.Side, serve.DeuceCourt, zone, contact, config, character.Court,
                 UnityEngine.Random.insideUnitCircle);
 
-            float apex = ServeSolver.ResolveApex(power, contact, config);
+            float apex = ServeSolver.ResolveApex(contact, config);
             ball.LaunchAt(contact.Point, LastTarget, apex);
 
             // From here the ball's own first event decides, rather than a second

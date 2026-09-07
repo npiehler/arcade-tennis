@@ -8,10 +8,7 @@ namespace ArcadeTennis.Characters
         /// <summary>Ready to start a stroke.</summary>
         Idle,
 
-        /// <summary>Button held, power building.</summary>
-        Charging,
-
-        /// <summary>Button released, racket on its way to the ball.</summary>
+        /// <summary>Pressed; racket on its way to the ball.</summary>
         Swinging,
 
         /// <summary>Stroke finished; no new stroke can start yet.</summary>
@@ -32,18 +29,14 @@ namespace ArcadeTennis.Characters
     {
         public SwingPhase Phase;
 
-        /// <summary>Raw hold time as a 0..1 fraction. Read <see cref="Power"/> for the usable value.</summary>
-        public float Charge;
-
         /// <summary>Seconds spent in the current phase.</summary>
         public float PhaseTime;
 
         /// <summary>Set once the racket has passed the ball, so a swing resolves exactly once.</summary>
         public bool ContactResolved;
 
-        /// <summary>Charge with the tap floor applied.</summary>
-        public float Power(SwingConfig config) =>
-            config == null ? Charge : Mathf.Clamp01(Mathf.Max(Charge, config.MinCharge));
+        /// <summary>Last tick's button state, so a stroke starts on the press and not on the hold.</summary>
+        public bool ButtonWasDown;
 
         public bool CanStartStroke => Phase == SwingPhase.Idle;
     }
@@ -127,24 +120,17 @@ namespace ArcadeTennis.Characters
             contactDue = false;
             if (config == null) return;
 
+            // Edge-triggered: the stroke is a tap, so holding the button down
+            // must not fire a second one the moment the recovery ends.
+            bool pressed = holding && !state.ButtonWasDown;
+            state.ButtonWasDown = holding;
+
             state.PhaseTime += deltaTime;
 
             switch (state.Phase)
             {
                 case SwingPhase.Idle:
-                    // Level-triggered on purpose: a player who holds the button
-                    // through the recovery starts charging the next stroke the
-                    // moment they are able to, which is what a rally needs.
-                    if (holding) Enter(ref state, SwingPhase.Charging);
-                    break;
-
-                case SwingPhase.Charging:
-                    if (holding)
-                    {
-                        float rate = config.ChargeTime > 0.0001f ? deltaTime / config.ChargeTime : 1f;
-                        state.Charge = Mathf.Clamp01(state.Charge + rate);
-                    }
-                    else
+                    if (pressed)
                     {
                         Enter(ref state, SwingPhase.Swinging);
                         state.ContactResolved = false;
@@ -164,10 +150,7 @@ namespace ArcadeTennis.Characters
 
                 case SwingPhase.Recovering:
                     if (state.PhaseTime >= config.RecoverDuration)
-                    {
                         Enter(ref state, SwingPhase.Idle);
-                        state.Charge = 0f;
-                    }
                     break;
             }
         }
@@ -176,7 +159,6 @@ namespace ArcadeTennis.Characters
         {
             state.Phase = phase;
             state.PhaseTime = 0f;
-            if (phase == SwingPhase.Charging) state.Charge = 0f;
         }
 
         /// <summary>
@@ -254,96 +236,72 @@ namespace ArcadeTennis.Characters
         }
 
         /// <summary>
-        /// How much of the charge actually reaches the ball. Poor contact costs
-        /// power, which is what makes a mistimed shot land short rather than
-        /// merely land somewhere else.
+        /// How deep the ball is sent. With no charge to hold, this is the whole
+        /// reward for meeting the ball well: a clean stroke goes deep, a mistimed
+        /// one falls short where it can be attacked.
         /// </summary>
-        public static float EffectivePower(float power, SwingContact contact, SwingConfig config)
+        public static float ResolveDepth(SwingContact contact, SwingConfig config)
         {
-            if (config == null) return power;
-            return Mathf.Clamp01(power) * Mathf.Lerp(config.MinQualityPower, 1f, contact.Quality);
+            if (config == null) return 8f;
+            return Mathf.Lerp(config.WeakDepth, config.StrongDepth, Mathf.Clamp01(contact.Quality));
         }
 
         /// <summary>
-        /// Drops aim input that is too small to be meant, using the very same
-        /// deadzone the legs use. A stick resting just off centre must not steer
-        /// the ball when it is not steering the player -- "standing still" has to
-        /// mean one thing, not two.
-        ///
-        /// The value comes from <see cref="CharacterConfig.InputDeadzone"/> rather
-        /// than a second field here, so the two cannot drift apart.
-        /// </summary>
-        public static Vector2 ApplyAimDeadzone(Vector2 aim, float deadzone)
-        {
-            return aim.magnitude < deadzone ? Vector2.zero : aim;
-        }
-
-        /// <summary>
-        /// Where the return is aimed. Charge sets the depth, the aim stick sets
-        /// the width, contact quality sets how far the ball may stray from that.
+        /// Where the return is aimed. The player picks one of three zones; the
+        /// contact decides how deep into it the ball goes and how far it may
+        /// stray from the middle of it.
         ///
         /// <paramref name="spread"/> is handed in rather than drawn here so the
         /// function stays pure and the verification suite can pin it down; the
         /// live controller passes a random point in the unit circle.
         /// </summary>
-        public static Vector3 ResolveTarget(int side, float power, Vector2 aim, SwingContact contact,
+        public static Vector3 ResolveTarget(int side, AimZone zone, SwingContact contact,
                                             SwingConfig config, CourtDefinition court, Vector2 spread)
         {
             if (config == null || court == null) return Vector3.zero;
 
-            int s = side >= 0 ? 1 : -1;
-            float effective = EffectivePower(power, contact, config);
-
-            // Spans from the foot of the net to past the opponent's baseline, so the
-            // charge can fail in both directions. A shot that lands in is one the
-            // player judged, not one the solver guaranteed.
-            float depth = Mathf.Lerp(
-                config.MinTargetDepth, court.HalfLength + config.BaselineOvershoot, effective);
-
-            // Aim mirrors exactly the way movement does, so "right" means right
-            // on screen for whichever end is being played.
-            float aimX = Mathf.Clamp(aim.x, -1f, 1f) * (s < 0 ? 1f : -1f);
-            float lateral = aimX * court.SinglesHalfWidth * config.AimWidth;
+            Vector3 nominal = AimZones.GroundTarget(court, side, zone, ResolveDepth(contact, config));
 
             float scatter = Mathf.Lerp(config.MaxSpread, config.MinSpread, contact.Quality);
             Vector2 offset = Vector2.ClampMagnitude(spread, 1f) * scatter;
 
             // Sideways slip is kept far smaller than length error. A shot that
             // lands short reads as "I mistimed that"; a shot that ignores the
-            // direction the player asked for reads as a broken game.
+            // zone the player chose reads as a broken game.
             offset.x *= config.LateralSpreadFactor;
+
+            int s = side >= 0 ? 1 : -1;
+            float depth = -s * nominal.z + offset.y;
 
             float maxX = court.SinglesHalfWidth + config.OutMargin;
             float maxDepth = court.HalfLength + config.OutMargin;
 
-            float x = Mathf.Clamp(lateral + offset.x, -maxX, maxX);
+            // The near limit keeps a wild shot out of the net apron: falling
+            // short has to stay a consequence of poor contact, not something the
+            // spread can ask for.
+            depth = Mathf.Clamp(depth, config.WeakDepth * 0.4f, maxDepth);
 
-            // The near limit keeps a wild shot from being aimed into the net
-            // apron: falling short has to stay a consequence of a weak stroke,
-            // not something the aim can ask for.
-            float finalDepth = Mathf.Clamp(depth + offset.y, config.MinTargetDepth * 0.5f, maxDepth);
-
-            return new Vector3(x, 0f, -s * finalDepth);
+            return new Vector3(Mathf.Clamp(nominal.x + offset.x, -maxX, maxX), 0f, -s * depth);
         }
 
         /// <summary>
-        /// Apex above the contact point. A weak shot is barely lifted, which is
-        /// what lets it fall into the net; power buys both speed and height.
+        /// Apex above the contact point. A badly met ball is barely lifted, which
+        /// is what lets it fall into the net; clean contact buys both speed and
+        /// height.
         ///
         /// The clearance floor that keeps a ball met off the ground playable is
-        /// scaled by power as well. Applying it flat would hand every stab a
-        /// trajectory that clears the net, and the whole low end of the charge
+        /// scaled by quality as well. Applying it flat would hand every stab a
+        /// trajectory that clears the net, and the bottom of the quality range
         /// would stop meaning anything.
         /// </summary>
-        public static float ResolveApex(float power, SwingContact contact, Vector3 contactPoint,
-                                        SwingConfig config)
+        public static float ResolveApex(SwingContact contact, Vector3 contactPoint, SwingConfig config)
         {
             if (config == null) return 1.5f;
 
-            float effective = EffectivePower(power, contact, config);
-            float apex = Mathf.Lerp(config.ApexWeak, config.ApexFull, effective);
+            float quality = Mathf.Clamp01(contact.Quality);
+            float apex = Mathf.Lerp(config.ApexWeak, config.ApexFull, quality);
 
-            return Mathf.Max(apex, config.MinPeakHeight * effective - contactPoint.y);
+            return Mathf.Max(apex, config.MinPeakHeight * quality - contactPoint.y);
         }
     }
 }

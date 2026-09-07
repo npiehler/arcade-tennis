@@ -19,7 +19,6 @@ MonoBehaviour:
   hitHeight: 2.55
   reachRadius: 0.85
   sweetSpotRadius: 0.3
-  chargeTime: 0.8
   contactDelay: 0.16
   timingWindow: 0.16
   perfectWindow: 0.05
@@ -27,13 +26,11 @@ MonoBehaviour:
   recoverDuration: 0.2
   perfectThreshold: 0.82
   goodThreshold: 0.45
-  minDepth: 0.6
-  serviceLineOvershoot: 1
-  aimWidth: 0.92
+  weakDepth: 1.2
+  strongDepth: 5.6
   outMargin: 1.6
   maxSpread: 1.5
   minSpread: 0.1
   lateralSpreadFactor: 0.35
-  minQualityPower: 0.8
-  apexWeak: 0.3
+  apexWeak: 0.15
   apexFull: 0.08
